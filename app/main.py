@@ -1,5 +1,5 @@
 """
-FastAPI Model Agency Backend
+FastAPI 모델 에이전시 백엔드
 메인 애플리케이션 진입점
 """
 
@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.exceptions import ModelAgencyException
 from app.domains.models.router import router as models_router
 
-# FastAPI 앱 생성
+# FastAPI 애플리케이션 생성
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
@@ -37,7 +37,7 @@ async def model_agency_exception_handler(request: Request, exc: ModelAgencyExcep
             "success": False,
             "error": exc.__class__.__name__,
             "message": exc.message,
-            "timestamp": "2024-01-01T00:00:00Z"  # 실제로는 datetime.now()
+            "timestamp": "2024-01-01T00:00:00Z"  # 실제로는 datetime.now()를 사용
         }
     )
 
@@ -48,16 +48,16 @@ app.include_router(models_router, prefix="/api/v1")
 async def root():
     """루트 엔드포인트"""
     return {
-        "message": "Model Agency Backend API",
+        "message": "모델 에이전시 백엔드 API",
         "version": "1.0.0",
-        "status": "running",
-        "docs": "/docs" if settings.DEBUG else "disabled"
+        "status": "실행중",
+        "docs": "/docs" if settings.DEBUG else "비활성화"
     }
 
 @app.get("/health")
 async def health_check():
     """헬스 체크"""
-    return {"status": "healthy", "version": "1.0.0"}
+    return {"status": "정상", "version": "1.0.0"}
 
 if __name__ == "__main__":
     import uvicorn

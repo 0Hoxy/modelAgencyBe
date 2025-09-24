@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-# Base 스키마
+# 기본 스키마
 class BaseModelSchema(BaseModel):
     """모델 기본 스키마"""
     name: str = Field(..., min_length=2, max_length=100, description="모델 이름")
@@ -64,7 +64,7 @@ class ModelList(BaseModel):
     size: int = Field(..., description="페이지 크기")
 
 
-# Portfolio 스키마
+# 포트폴리오 스키마
 class PortfolioBase(BaseModel):
     """포트폴리오 기본 스키마"""
     title: str = Field(..., min_length=2, max_length=200, description="포트폴리오 제목")

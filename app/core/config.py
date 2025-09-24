@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
     
     # 파일 업로드 설정
-    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
+    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB 파일 크기 제한
     UPLOAD_DIR: str = "uploads"
     
     class Config:
