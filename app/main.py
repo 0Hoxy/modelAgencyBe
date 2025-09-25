@@ -57,7 +57,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """헬스 체크"""
-    return {"status": "정상", "version": "1.0.0"}
+    return {"status": "정상", "App Name": settings.APP_NAME}
 
 if __name__ == "__main__":
     import uvicorn

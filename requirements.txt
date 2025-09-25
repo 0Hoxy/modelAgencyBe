@@ -1,18 +1,26 @@
-fastapi==0.117.1
-uvicorn[standard]==0.36.0
+phonenumberslite
+# 웹 프레임워크 및 서버
+fastapi==0.117.1               # 고성능 웹 API 프레임워크
+uvicorn[standard]==0.37.0      # ASGI 서버 (FastAPI 실행용)
 
-sqlalchemy==2.0.36
-alembic==1.13.0
+# 데이터베이스 ORM 및 마이그레이션
+sqlalchemy==2.0.43            # Python SQL 툴킷 및 ORM
+alembic==1.16.5              # 데이터베이스 스키마 마이그레이션 도구
+greenlet==3.2.4              # SQLAlchemy 비동기 지원에 필요
 
-python-jose[cryptography]==3.5.0
-passlib[bcrypt]==1.7.4 
+# PostgreSQL 비동기 드라이버
+asyncpg==0.30.0             # PostgreSQL용 고성능 비동기 드라이버
 
-python-dotenv==1.1.1
-pydantic==2.11.9
-pydantic-settings==2.6.1
+# 인증 및 보안
+python-jose[cryptography]==3.5.0  # JWT 토큰 생성/검증 라이브러리
+passlib[bcrypt]==1.7.4        # 패스워드 해싱 라이브러리 (bcrypt 포함)
 
-email-validator==2.3.0
-phonenumbers==8.13.45
-python-dateutil==2.9.0
+# 설정 관리
+python-dotenv==1.1.1         # .env 파일에서 환경변수 로드
+pydantic==2.11.9             # 데이터 검증 및 직렬화 라이브러리
+pydantic-settings==2.11.0     # Pydantic 기반 설정 관리
 
-asyncpg==0.30.0
+# 유효성 검증 라이브러리
+email-validator==2.3.0       # 이메일 주소 형식 검증
+phonenumbers==9.0.14        # 전화번호 형식 검증 및 파싱
+python-dateutil==2.9.0.post0       # 날짜/시간 파싱 및 조작

@@ -1,213 +1,168 @@
 """
 모델(인물) 관련 비즈니스 로직
 """
+import uuid
+from typing import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
-from datetime import datetime
 
-from .repositories import ModelRepository, PortfolioRepository
-from .schemas import (
-    ModelCreate, ModelUpdate, ModelResponse, ModelList,
-    PortfolioCreate, PortfolioUpdate, PortfolioResponse, PortfolioList
-)
-from app.core.exceptions import ModelNotFoundException, ValidationException
+from app.core.logging import get_service_logger, log_service_operation
+from app.core.exceptions import handle_service_exceptions, ValidationError, EntityNotFoundError
+from app.domains.models.repositories import model_repository
+from app.domains.models.schemas import CreateDomesticModel, CreateOverseaModel, UpdateModel, ReadDomesticModel, ReadOverseaModel, CreateModelResponse
+from app.domains.models.models import Model
 
 
 class ModelService:
-    """모델 서비스"""
-    
-    def __init__(self, db: AsyncSession):
-        self.model_repo = ModelRepository(db)
+    def __init__(self):
+        """Service 초기화"""
+        self.logger = get_service_logger("model")
+        self.repository = model_repository
 
-    async def create_model(self, model_data: ModelCreate) -> ModelResponse:
-        """모델 생성"""
-        # 이메일 중복 검사
-        existing_model = await self.model_repo.get_by_email(model_data.email)
-        if existing_model:
-            raise ValidationException("이미 존재하는 이메일입니다")
+    @log_service_operation("CREATE")
+    @handle_service_exceptions
+    async def create_model(self, db: AsyncSession, model_data: CreateDomesticModel | CreateOverseaModel) -> ReadDomesticModel | ReadOverseaModel:
+        """새로운 모델을 생성합니다."""
+        self.logger.debug(f"모델 생성 요청 - 데이터: {model_data.model_dump()}")
 
-        # 모델 생성
-        model = await self.model_repo.create(model_data)
-        return ModelResponse.model_validate(model)
+        # 비즈니스 로직 검증
+        await self._validate_create_model(db, model_data)
 
-    async def get_model_by_id(self, model_id: str) -> ModelResponse:
-        """모델 조회"""
-        model = await self.model_repo.get_by_id(model_id)
-        if not model:
-            raise ModelNotFoundException(model_id)
-        return ModelResponse.model_validate(model)
+        # Repository를 통해 모델 생성
+        model = await self.repository.create(db, model_data)
 
-    async def get_models(
-        self,
-        page: int = 1,
-        size: int = 10,
-        is_active: Optional[bool] = None,
-        is_verified: Optional[bool] = None
-    ) -> ModelList:
-        """모델 목록 조회"""
-        skip = (page - 1) * size
-        
-        models = await self.model_repo.get_all(
-            skip=skip,
-            limit=size,
-            is_active=is_active,
-            is_verified=is_verified
-        )
-        
-        total = await self.model_repo.count(
-            is_active=is_active,
-            is_verified=is_verified
-        )
-        
-        model_responses = [ModelResponse.model_validate(model) for model in models]
-        
-        return ModelList(
-            models=model_responses,
-            total=total,
-            page=page,
-            size=size
-        )
+        self.logger.info(f"모델 생성 완료 - ID: {model.id}, 이름: {model.name}")
 
-    async def update_model(self, model_id: str, model_data: ModelUpdate) -> ModelResponse:
-        """모델 수정"""
-        model = await self.model_repo.get_by_id(model_id)
-        if not model:
-            raise ModelNotFoundException(model_id)
+        # 모델 타입에 따라 적절한 스키마 선택
+        if isinstance(model_data, CreateDomesticModel):
+            return ReadDomesticModel.model_validate(model)
+        else:
+            return ReadOverseaModel.model_validate(model)
 
-        # 이메일 변경 시 중복 검사
-        if model_data.email and model_data.email != model.email:
-            existing_model = await self.model_repo.get_by_email(model_data.email)
-            if existing_model:
-                raise ValidationException("이미 존재하는 이메일입니다")
+    @log_service_operation("READ")
+    @handle_service_exceptions
+    async def get_model_by_id(self, db: AsyncSession, model_id: uuid.UUID) -> ReadDomesticModel | ReadOverseaModel:
+        """ID로 모델을 조회합니다."""
+        self.logger.debug(f"모델 조회 요청 - ID: {model_id}")
 
-        updated_model = await self.model_repo.update(model_id, model_data)
-        if not updated_model:
-            raise ModelNotFoundException(model_id)
-            
-        return ModelResponse.model_validate(updated_model)
+        model = await self.repository.get_by_id(db, model_id)
 
-    async def delete_model(self, model_id: str) -> bool:
-        """모델 삭제"""
-        model = await self.model_repo.get_by_id(model_id)
-        if not model:
-            raise ModelNotFoundException(model_id)
+        self.logger.debug(f"모델 조회 완룈 - ID: {model_id}, 이름: {model.name}")
 
-        return await self.model_repo.delete(model_id)
+        # 모델 속성에 따라 적절한 스키마 선택
+        if hasattr(model, 'has_agency') and model.has_agency is not None:
+            return ReadDomesticModel.model_validate(model)
+        else:
+            return ReadOverseaModel.model_validate(model)
 
-    async def search_models(
-        self,
-        query: str,
-        page: int = 1,
-        size: int = 10
-    ) -> ModelList:
-        """모델 검색"""
-        if not query or len(query.strip()) < 2:
-            raise ValidationException("검색어는 2글자 이상이어야 합니다")
+    @log_service_operation("READ_ALL")
+    @handle_service_exceptions
+    async def get_models(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> list[ReadDomesticModel | ReadOverseaModel]:
+        """모델 목록을 조회합니다."""
+        self.logger.debug(f"모델 목록 조회 요청 - skip: {skip}, limit: {limit}")
 
-        skip = (page - 1) * size
-        
-        models = await self.model_repo.search(
-            query=query.strip(),
-            skip=skip,
-            limit=size
-        )
-        
-        # 검색 결과 개수는 정확하지 않을 수 있으므로 실제 결과 개수 사용
-        total = len(models)
-        
-        model_responses = [ModelResponse.model_validate(model) for model in models]
-        
-        return ModelList(
-            models=model_responses,
-            total=total,
-            page=page,
-            size=size
-        )
+        # 페이징 검증
+        if skip < 0:
+            raise ValidationError("skip", "0 이상이어야 합니다", skip)
+        if limit <= 0 or limit > 100:
+            raise ValidationError("limit", "1-100 사이여야 합니다", limit)
+
+        models = await self.repository.get_all(db, skip, limit)
+
+        self.logger.info(f"모델 목록 조회 완료 - 조회된 개수: {len(models)}")
+
+        result = []
+        for model in models:
+            if hasattr(model, 'has_agency') and model.has_agency is not None:
+                result.append(ReadDomesticModel.model_validate(model))
+            else:
+                result.append(ReadOverseaModel.model_validate(model))
+        return result
+
+    @log_service_operation("UPDATE")
+    @handle_service_exceptions
+    async def update_model(self, db: AsyncSession, model_id: uuid.UUID, update_data: UpdateModel) -> ReadDomesticModel | ReadOverseaModel:
+        """모델 정보를 업데이트합니다."""
+        self.logger.debug(f"모델 업데이트 요청 - ID: {model_id}, 데이터: {update_data.model_dump(exclude_unset=True)}")
+
+        # 모델 존재 확인
+        existing_model = await self.repository.get_by_id(db, model_id)
+
+        # 비즈니스 로직 검증
+        await self._validate_update_model(db, model_id, update_data)
+
+        # Repository를 통해 모델 업데이트
+        updated_model = await self.repository.update(db, existing_model, update_data)
+
+        self.logger.info(f"모델 업데이트 완료 - ID: {model_id}, 이름: {updated_model.name}")
+
+        # 모델 속성에 따라 적절한 스키마 선택
+        if hasattr(updated_model, 'has_agency') and updated_model.has_agency is not None:
+            return ReadDomesticModel.model_validate(updated_model)
+        else:
+            return ReadOverseaModel.model_validate(updated_model)
+
+    @log_service_operation("DELETE")
+    @handle_service_exceptions
+    async def delete_model(self, db: AsyncSession, model_id: uuid.UUID) -> None:
+        """모델을 삭제합니다."""
+        self.logger.debug(f"모델 삭제 요청 - ID: {model_id}")
+
+        # 모델 존재 확인
+        existing_model = await self.repository.get_by_id(db, model_id)
+
+        # 비즈니스 로직 검증 (삭제 전 검증)
+        await self._validate_delete_model(db, existing_model)
+
+        # Repository를 통해 모델 삭제
+        await self.repository.delete(db, existing_model)
+
+        self.logger.info(f"모델 삭제 완료 - ID: {model_id}, 이름: {existing_model.name}")
 
 
-class PortfolioService:
-    """포트폴리오 서비스"""
-    
-    def __init__(self, db: AsyncSession):
-        self.portfolio_repo = PortfolioRepository(db)
-        self.model_repo = ModelRepository(db)
+# --- 검증 ---
+    async def _validate_create_model(self, db: AsyncSession, model_data: CreateDomesticModel | CreateOverseaModel) -> None:
+        """모델 생성 시 비즈니스 로직 검증"""
 
-    async def create_portfolio(self, portfolio_data: PortfolioCreate) -> PortfolioResponse:
-        """포트폴리오 생성"""
-        # 모델 존재 여부 확인
-        model = await self.model_repo.get_by_id(portfolio_data.model_id)
-        if not model:
-            raise ModelNotFoundException(portfolio_data.model_id)
+        # 필수 필드 검증
+        if not model_data.name or not model_data.name.strip():
+            raise ValidationError("name", "이름은 필수입니다")
 
-        # 포트폴리오 생성
-        portfolio = await self.portfolio_repo.create(portfolio_data)
-        return PortfolioResponse.model_validate(portfolio)
+        if not model_data.phone:
+            raise ValidationError("phone", "연락처는 필수입니다")
 
-    async def get_portfolio_by_id(self, portfolio_id: str) -> PortfolioResponse:
-        """포트폴리오 조회"""
-        portfolio = await self.portfolio_repo.get_by_id(portfolio_id)
-        if not portfolio:
-            raise ModelNotFoundException(portfolio_id)
-        return PortfolioResponse.model_validate(portfolio)
+        if model_data.height <= 0:
+            raise ValidationError("height", "키는 0보다 커야 합니다", model_data.height)
 
-    async def get_portfolios_by_model_id(
-        self,
-        model_id: str,
-        page: int = 1,
-        size: int = 10,
-        is_public: Optional[bool] = None
-    ) -> PortfolioList:
-        """모델의 포트폴리오 목록 조회"""
-        # 모델 존재 여부 확인
-        model = await self.model_repo.get_by_id(model_id)
-        if not model:
-            raise ModelNotFoundException(model_id)
+        # 연락처 중복 검증 (추후 구현 가능)
+        # existing_models = await self.repository.get_by_phone(db, model_data.phone)
+        # if existing_models:
+        #     raise ValidationError("phone", "이미 등록된 연락처입니다", model_data.phone)
 
-        skip = (page - 1) * size
-        
-        portfolios = await self.portfolio_repo.get_by_model_id(
-            model_id=model_id,
-            skip=skip,
-            limit=size,
-            is_public=is_public
-        )
-        
-        total = await self.portfolio_repo.count_by_model_id(
-            model_id=model_id,
-            is_public=is_public
-        )
-        
-        portfolio_responses = [PortfolioResponse.model_validate(portfolio) for portfolio in portfolios]
-        
-        return PortfolioList(
-            portfolios=portfolio_responses,
-            total=total,
-            page=page,
-            size=size
-        )
+    async def _validate_update_model(self, db: AsyncSession, model_id: uuid.UUID, update_data: UpdateModel) -> None:
+        """모델 업데이트 시 비즈니스 로직 검증"""
 
-    async def get_featured_portfolios(self, limit: int = 10) -> List[PortfolioResponse]:
-        """추천 포트폴리오 조회"""
-        portfolios = await self.portfolio_repo.get_featured(limit=limit)
-        return [PortfolioResponse.model_validate(portfolio) for portfolio in portfolios]
+        update_dict = update_data.model_dump(exclude_unset=True)
 
-    async def update_portfolio(self, portfolio_id: str, portfolio_data: PortfolioUpdate) -> PortfolioResponse:
-        """포트폴리오 수정"""
-        portfolio = await self.portfolio_repo.get_by_id(portfolio_id)
-        if not portfolio:
-            raise ModelNotFoundException(portfolio_id)
+        # 높이 검증
+        if "height" in update_dict and update_dict["height"] <= 0:
+            raise ValidationError("height", "키는 0보다 커야 합니다", update_dict["height"])
 
-        updated_portfolio = await self.portfolio_repo.update(portfolio_id, portfolio_data)
-        if not updated_portfolio:
-            raise ModelNotFoundException(portfolio_id)
-            
-        return PortfolioResponse.model_validate(updated_portfolio)
+        # 이름 검증
+        if "name" in update_dict and (not update_dict["name"] or not update_dict["name"].strip()):
+            raise ValidationError("name", "이름은 비워둘 수 없습니다")
 
-    async def delete_portfolio(self, portfolio_id: str) -> bool:
-        """포트폴리오 삭제"""
-        portfolio = await self.portfolio_repo.get_by_id(portfolio_id)
-        if not portfolio:
-            raise ModelNotFoundException(portfolio_id)
+        # 연락처 검증
+        if "phone" in update_dict and (not update_dict["phone"] or not update_dict["phone"].strip()):
+            raise ValidationError("phone", "연락처는 비워둘 수 없습니다")
 
-        return await self.portfolio_repo.delete(portfolio_id)
+    async def _validate_delete_model(self, db: AsyncSession, model: Model) -> None:
+        """모델 삭제 시 비즈니스 로직 검증"""
+
+        # 삭제 가능 여부 검증 (예: 진행 중인 프로젝트가 있는지 확인)
+        # 현재는 기본적인 검증만 수행
+        pass
+
+
+# 싱글톤 인스턴스
+model_service = ModelService()

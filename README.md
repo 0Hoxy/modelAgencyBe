@@ -140,18 +140,18 @@ mkdir -p app/domains/users
 ### **2단계: 파일 생성**
 
 ```bash
-touch app/domains/users/models.py      # 데이터베이스 모델
-touch app/domains/users/schemas.py     # DTO 클래스
-touch app/domains/users/repositories.py # 데이터 접근
-touch app/domains/users/services.py    # 비즈니스 로직
-touch app/domains/users/router.py      # API 엔드포인트
+touch app/domains/models/models.py      # 데이터베이스 모델
+touch app/domains/models/schemas.py    # DTO 클래스
+touch app/domains/models/repositories.py # 데이터 접근
+touch app/domains/models/services.py    # 비즈니스 로직
+touch app/domains/models/router.py      # API 엔드포인트
 ```
 
 ### **3단계: 메인 라우터에 등록**
 
 ```python
 # app/main.py에 추가
-from app.domains.users.router import router as users_router
+from app.domains.models.router import router as users_router
 app.include_router(users_router, prefix="/api/v1/users")
 ```
 

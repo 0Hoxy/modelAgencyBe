@@ -1,202 +1,92 @@
 """
 모델(인물) 관련 데이터 접근 계층
 """
+import uuid
+from typing import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
-from sqlalchemy.orm import selectinload
-from typing import List, Optional
-import uuid
+from sqlalchemy.future import select
 
-from .models import Model, Portfolio
-from .schemas import ModelCreate, ModelUpdate, PortfolioCreate, PortfolioUpdate
+from app.core.logging import get_repository_logger, log_db_operation
+from app.core.exceptions import handle_repository_exceptions, EntityNotFoundError
+from app.domains.models.schemas import CreateDomesticModel, CreateOverseaModel, UpdateModel
+from app.domains.models.models import Model
 
 
 class ModelRepository:
-    """모델 리포지토리"""
-    
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self):
+        """Repository 초기화"""
+        self.logger = get_repository_logger("model")
 
-    async def create(self, model_data: ModelCreate) -> Model:
-        """모델 생성"""
-        db_model = Model(**model_data.model_dump())
-        self.db.add(db_model)
-        await self.db.commit()
-        await self.db.refresh(db_model)
+    @log_db_operation("CREATE")
+    @handle_repository_exceptions
+    async def create(self, db: AsyncSession, model_data: CreateDomesticModel | CreateOverseaModel) -> Model:
+        """새로운 모델을 생성합니다."""
+        model = Model(**model_data.model_dump())
+        self.logger.debug(f"모델 생성 데이터: {model_data.model_dump()}")
+
+        db.add(model)
+        await db.commit()
+        await db.refresh(model)
+
+        self.logger.info(f"모델 생성 성공 - ID: {model.id}, 이름: {model.name}")
+        return model
+
+    @log_db_operation("READ")
+    @handle_repository_exceptions
+    async def get_by_id(self, db: AsyncSession, model_id: uuid.UUID) -> Model:
+        """ID로 특정 모델을 조회합니다."""
+        self.logger.debug(f"모델 조회 시작 - ID: {model_id}")
+        query = select(Model).where(Model.id == model_id)
+        result = await db.execute(query)
+        model = result.scalars().first()
+
+        if not model:
+            raise EntityNotFoundError("모델", model_id)
+
+        self.logger.debug(f"모델 조회 성공 - ID: {model_id}, 이름: {model.name}")
+        return model
+
+    @log_db_operation("READ_ALL")
+    @handle_repository_exceptions
+    async def get_all(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> Sequence[Model]:
+        """모든 모델을 조회합니다."""
+        self.logger.debug(f"모델 목록 조회 시작 - skip: {skip}, limit: {limit}")
+        query = select(Model).offset(skip).limit(limit)
+        result = await db.execute(query)
+        models = result.scalars().all()
+
+        self.logger.info(f"모델 목록 조회 성공 - 조회된 개수: {len(models)}")
+        return models
+
+    @log_db_operation("UPDATE")
+    @handle_repository_exceptions
+    async def update(self, db: AsyncSession, db_model: Model, update_data: UpdateModel) -> Model:
+        """모델 정보를 업데이트합니다."""
+        update_dict = update_data.model_dump(exclude_unset=True)
+        self.logger.debug(f"모델 업데이트 시작 - ID: {db_model.id}, 업데이트 데이터: {update_dict}")
+
+        for key, value in update_dict.items():
+            setattr(db_model, key, value)
+
+        db.add(db_model)
+        await db.commit()
+        await db.refresh(db_model)
+
+        self.logger.info(f"모델 업데이트 성공 - ID: {db_model.id}, 이름: {db_model.name}")
         return db_model
 
-    async def get_by_id(self, model_id: str) -> Optional[Model]:
-        """ID로 모델 조회"""
-        result = await self.db.execute(
-            select(Model).where(Model.id == model_id)
-        )
-        return result.scalar_one_or_none()
+    @log_db_operation("DELETE")
+    @handle_repository_exceptions
+    async def delete(self, db: AsyncSession, db_model: Model) -> None:
+        """모델을 삭제합니다."""
+        model_id = db_model.id
+        model_name = db_model.name
+        self.logger.debug(f"모델 삭제 시작 - ID: {model_id}, 이름: {model_name}")
 
-    async def get_by_email(self, email: str) -> Optional[Model]:
-        """이메일로 모델 조회"""
-        result = await self.db.execute(
-            select(Model).where(Model.email == email)
-        )
-        return result.scalar_one_or_none()
+        await db.delete(db_model)
+        await db.commit()
 
-    async def get_all(
-        self, 
-        skip: int = 0, 
-        limit: int = 10,
-        is_active: Optional[bool] = None,
-        is_verified: Optional[bool] = None
-    ) -> List[Model]:
-        """모델 목록 조회"""
-        query = select(Model)
-        
-        if is_active is not None:
-            query = query.where(Model.is_active == is_active)
-        if is_verified is not None:
-            query = query.where(Model.is_verified == is_verified)
-            
-        query = query.offset(skip).limit(limit).order_by(Model.created_at.desc())
-        
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        self.logger.info(f"모델 삭제 성공 - ID: {model_id}, 이름: {model_name}")
 
-    async def count(
-        self,
-        is_active: Optional[bool] = None,
-        is_verified: Optional[bool] = None
-    ) -> int:
-        """모델 개수 조회"""
-        query = select(Model.id)
-        
-        if is_active is not None:
-            query = query.where(Model.is_active == is_active)
-        if is_verified is not None:
-            query = query.where(Model.is_verified == is_verified)
-            
-        result = await self.db.execute(query)
-        return len(result.scalars().all())
-
-    async def update(self, model_id: str, model_data: ModelUpdate) -> Optional[Model]:
-        """모델 수정"""
-        update_data = model_data.model_dump(exclude_unset=True)
-        if not update_data:
-            return await self.get_by_id(model_id)
-            
-        await self.db.execute(
-            update(Model)
-            .where(Model.id == model_id)
-            .values(**update_data)
-        )
-        await self.db.commit()
-        return await self.get_by_id(model_id)
-
-    async def delete(self, model_id: str) -> bool:
-        """모델 삭제"""
-        result = await self.db.execute(
-            delete(Model).where(Model.id == model_id)
-        )
-        await self.db.commit()
-        return result.rowcount > 0
-
-    async def search(
-        self,
-        query: str,
-        skip: int = 0,
-        limit: int = 10
-    ) -> List[Model]:
-        """모델 검색"""
-        search_query = select(Model).where(
-            Model.name.ilike(f"%{query}%") |
-            Model.bio.ilike(f"%{query}%") |
-            Model.experience.ilike(f"%{query}%")
-        ).offset(skip).limit(limit).order_by(Model.created_at.desc())
-        
-        result = await self.db.execute(search_query)
-        return result.scalars().all()
-
-
-class PortfolioRepository:
-    """포트폴리오 리포지토리"""
-    
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def create(self, portfolio_data: PortfolioCreate) -> Portfolio:
-        """포트폴리오 생성"""
-        db_portfolio = Portfolio(**portfolio_data.model_dump())
-        self.db.add(db_portfolio)
-        await self.db.commit()
-        await self.db.refresh(db_portfolio)
-        return db_portfolio
-
-    async def get_by_id(self, portfolio_id: str) -> Optional[Portfolio]:
-        """ID로 포트폴리오 조회"""
-        result = await self.db.execute(
-            select(Portfolio).where(Portfolio.id == portfolio_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def get_by_model_id(
-        self,
-        model_id: str,
-        skip: int = 0,
-        limit: int = 10,
-        is_public: Optional[bool] = None
-    ) -> List[Portfolio]:
-        """모델 ID로 포트폴리오 목록 조회"""
-        query = select(Portfolio).where(Portfolio.model_id == model_id)
-        
-        if is_public is not None:
-            query = query.where(Portfolio.is_public == is_public)
-            
-        query = query.offset(skip).limit(limit).order_by(Portfolio.created_at.desc())
-        
-        result = await self.db.execute(query)
-        return result.scalars().all()
-
-    async def get_featured(self, limit: int = 10) -> List[Portfolio]:
-        """추천 포트폴리오 조회"""
-        result = await self.db.execute(
-            select(Portfolio)
-            .where(Portfolio.is_featured == True)
-            .where(Portfolio.is_public == True)
-            .limit(limit)
-            .order_by(Portfolio.created_at.desc())
-        )
-        return result.scalars().all()
-
-    async def count_by_model_id(
-        self,
-        model_id: str,
-        is_public: Optional[bool] = None
-    ) -> int:
-        """모델의 포트폴리오 개수 조회"""
-        query = select(Portfolio.id).where(Portfolio.model_id == model_id)
-        
-        if is_public is not None:
-            query = query.where(Portfolio.is_public == is_public)
-            
-        result = await self.db.execute(query)
-        return len(result.scalars().all())
-
-    async def update(self, portfolio_id: str, portfolio_data: PortfolioUpdate) -> Optional[Portfolio]:
-        """포트폴리오 수정"""
-        update_data = portfolio_data.model_dump(exclude_unset=True)
-        if not update_data:
-            return await self.get_by_id(portfolio_id)
-            
-        await self.db.execute(
-            update(Portfolio)
-            .where(Portfolio.id == portfolio_id)
-            .values(**update_data)
-        )
-        await self.db.commit()
-        return await self.get_by_id(portfolio_id)
-
-    async def delete(self, portfolio_id: str) -> bool:
-        """포트폴리오 삭제"""
-        result = await self.db.execute(
-            delete(Portfolio).where(Portfolio.id == portfolio_id)
-        )
-        await self.db.commit()
-        return result.rowcount > 0
+model_repository = ModelRepository()
