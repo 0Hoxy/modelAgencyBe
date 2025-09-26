@@ -20,43 +20,70 @@ class ModelRepository:
 
     @log_db_operation("CREATE")
     @handle_repository_exceptions
-    async def create(self, db: AsyncSession, model_data: CreateDomesticModel | CreateOverseaModel) -> Model:
+    async def create_domestic(self, db: AsyncSession, model_data: CreateDomesticModel) -> Model:
         """새로운 모델을 생성합니다."""
-        model = Model(**model_data.model_dump())
+        model = Model(**model_data.model_dump(), is_foreigner=False)
         self.logger.debug(f"모델 생성 데이터: {model_data.model_dump()}")
-
         db.add(model)
         await db.commit()
         await db.refresh(model)
+        self.logger.info(f"모델 생성 성공 - ID: {model.id}, 이름: {model.name}")
+        return model
 
+    @log_db_operation("CREATE")
+    @handle_repository_exceptions
+    async def create_oversea(self, db: AsyncSession, model_data: CreateOverseaModel) -> Model:
+        """새로운 모델을 생성합니다."""
+        model = Model(**model_data.model_dump(), is_foreigner=True)
+        self.logger.debug(f"모델 생성 데이터: {model_data.model_dump()}")
+        db.add(model)
+        await db.commit()
+        await db.refresh(model)
         self.logger.info(f"모델 생성 성공 - ID: {model.id}, 이름: {model.name}")
         return model
 
     @log_db_operation("READ")
     @handle_repository_exceptions
-    async def get_by_id(self, db: AsyncSession, model_id: uuid.UUID) -> Model:
-        """ID로 특정 모델을 조회합니다."""
-        self.logger.debug(f"모델 조회 시작 - ID: {model_id}")
-        query = select(Model).where(Model.id == model_id)
+    async def get_domestic_by_id(self, db: AsyncSession, model_id: uuid.UUID) -> Model:
+        """ID로 특정 국내 모델을 조회합니다."""
+        query = select(Model).where(Model.id == model_id, Model.is_foreigner == False)
         result = await db.execute(query)
         model = result.scalars().first()
 
         if not model:
-            raise EntityNotFoundError("모델", model_id)
+            raise EntityNotFoundError("국내 모델", model_id)
 
-        self.logger.debug(f"모델 조회 성공 - ID: {model_id}, 이름: {model.name}")
+        return model
+
+    @log_db_operation("READ")
+    @handle_repository_exceptions
+    async def get_oversea_by_id(self, db: AsyncSession, model_id: uuid.UUID) -> Model:
+        """ID로 특정 해외 모델을 조회합니다."""
+        query = select(Model).where(Model.id == model_id, Model.is_foreigner == True)
+        result = await db.execute(query)
+        model = result.scalars().first()
+
+        if not model:
+            raise EntityNotFoundError("해외 모델", model_id)
+
         return model
 
     @log_db_operation("READ_ALL")
     @handle_repository_exceptions
-    async def get_all(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> Sequence[Model]:
-        """모든 모델을 조회합니다."""
-        self.logger.debug(f"모델 목록 조회 시작 - skip: {skip}, limit: {limit}")
-        query = select(Model).offset(skip).limit(limit)
+    async def get_domestic_models(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> Sequence[Model]:
+        """국내 모델 목록을 조회합니다."""
+        query = select(Model).where(Model.is_foreigner == False).offset(skip).limit(limit)
         result = await db.execute(query)
         models = result.scalars().all()
+        return models
 
-        self.logger.info(f"모델 목록 조회 성공 - 조회된 개수: {len(models)}")
+    @log_db_operation("READ_ALL")
+    @handle_repository_exceptions
+    async def get_oversea_models(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> Sequence[Model]:
+        """해외 모델 목록을 조회합니다."""
+        query = select(Model).where(Model.is_foreigner == True).offset(skip).limit(limit)
+        result = await db.execute(query)
+        models = result.scalars().all()
         return models
 
     @log_db_operation("UPDATE")

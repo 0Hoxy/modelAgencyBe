@@ -2,8 +2,10 @@
 모델(인물) 관련 SQLAlchemy 모델
 """
 
-from sqlalchemy import Column, String, Boolean, Date, Enum, Double
+from sqlalchemy import Column, String, Boolean, Date, Enum, Double, BIGINT, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base
 import uuid
 
@@ -45,4 +47,18 @@ class Model(Base):
     top_size = Column(String(10), comment="상의 사이즈")  # XS, S, M, L, XL, XXL
     bottom_size = Column(String(10), comment="하의 사이즈")  # 28, 30, 32 등
     shoes_size = Column(String(10), comment="신발 사이즈")  # 250, 255, 260 등
+    is_foreigner = Column(Boolean, comment="국/내외 구분")
     agree_term = Column(Boolean, comment="약관 동의 여부")
+
+    # 관계 설정
+    camera_tests = relationship("CameraTest", back_populates="model")
+
+class CameraTest(Base):
+    __tablename__ = "cameratest"
+    id = Column(BIGINT, primary_key=True, autoincrement=True, comment="카메라테스트 ID")
+    model_id = Column(UUID(as_uuid=True), ForeignKey("models.id"), nullable=False, comment="모델 고유 식별자")
+    is_tested = Column(Enum(model_enum.CameraTestStatusEnum), comment="카메라테스트 완료 여부")
+    visited_at = Column(DateTime, comment="방문일시")
+
+    # 관계 설정
+    model = relationship("Model", back_populates="camera_tests")
