@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.exceptions import convert_to_http_exception, ApplicationError
 from app.domains.models.services import model_service
 from app.domains.models.schemas import CreateDomesticModel, CreateOverseaModel, UpdateModel, ReadDomesticModel, \
-    ReadOverseaModel, CreateModelResponse
+    ReadOverseaModel, CreateModelResponse, UpdateCameraTestStatus
 
 router = APIRouter(prefix="/models", tags=["모델 관리"])
 
@@ -114,10 +114,7 @@ async def update_oversea_model(
 
 
 @router.delete("/domestic/{model_id}", status_code=204)
-async def delete_domestic_model(
-    model_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def delete_domestic_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     """국내 모델을 삭제합니다."""
     try:
         await model_service.delete_domestic_model(db, model_id)
