@@ -1,18 +1,26 @@
-"""
-애플리케이션 설정 관리
-"""
-
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Final
 
 class Settings(BaseSettings):
-    # 앱 기본 설정
+    model_config = SettingsConfigDict(
+        frozen=True,
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8')
+
+    # 데이터베이스 설정
+    DATABASE_URL: str
+    DB_HOST: str
+    DB_PORT: int
+    DB_NAME: str
+    DB_USER: str
+    DB_PASSWORD: str
+
+    # 애플리케이션 설정
     APP_NAME: str
     DEBUG: bool
     HOST: str
     PORT: int
-
-    # 데이터베이스 설정
-    DATABASE_URL: str
 
     # JWT 설정
     SECRET_KEY: str
@@ -25,10 +33,5 @@ class Settings(BaseSettings):
     # 파일 업로드 설정
     MAX_FILE_SIZE: int
     UPLOAD_DIR: str
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
-# 전역 설정 인스턴스
-settings = Settings()
+settings: Final[Settings] = Settings()
