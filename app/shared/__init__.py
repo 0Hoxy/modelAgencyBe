@@ -6,7 +6,9 @@ from .validators import (
     validate_phone,
     validate_phone_optional,
     serialize_phone,
-    serialize_phone_optional
+    serialize_phone_optional,
+    ValidatedPhoneNumber,
+    ValidatedPhoneNumberOptional,
 )
 
 __all__ = [
@@ -14,4 +16,6 @@ __all__ = [
     "validate_phone_optional",
     "serialize_phone",
     "serialize_phone_optional",
+    "ValidatedPhoneNumber",
+    "ValidatedPhoneNumberOptional",
 ]

@@ -1,6 +1,7 @@
-from typing import Literal
+from typing import Literal, Annotated, Any
 from phonenumbers import is_valid_number, parse, NumberParseException, PhoneNumberFormat, format_number
 from phonenumbers.phonenumber import PhoneNumber
+from pydantic import BeforeValidator, PlainSerializer, WithJsonSchema
 
 # Literal 타입을 사용하여 허용되는 포맷을 명시
 PhoneFormat = Literal["E164", "INTERNATIONAL", "NATIONAL"]
@@ -131,3 +132,22 @@ def serialize_phone_optional(
         return None
     # 올바른 직렬화 함수를 호출하도록 수정
     return serialize_phone(phone, format_)
+
+
+# Pydantic Annotated 타입 정의
+# 이 타입들을 사용하면 Pydantic이 PhoneNumber를 이해할 수 있습니다.
+# 베이스 타입은 Any를 사용하여 Pydantic이 직접 PhoneNumber를 처리하지 않도록 합니다.
+
+ValidatedPhoneNumber = Annotated[
+    Any,  # PhoneNumber 타입이 실제 런타임 타입이지만, Pydantic에게는 Any로 알림
+    BeforeValidator(validate_phone),  # 입력값을 PhoneNumber로 변환
+    PlainSerializer(lambda p: serialize_phone(p, "E164")),  # JSON 직렬화 시 E164 형식 사용
+    WithJsonSchema({"type": "string", "example": "+821012345678"}),  # OpenAPI 문서용 스키마
+]
+
+ValidatedPhoneNumberOptional = Annotated[
+    Any,  # PhoneNumber | None 타입이 실제 런타임 타입이지만, Pydantic에게는 Any로 알림
+    BeforeValidator(validate_phone_optional),  # 입력값을 PhoneNumber | None으로 변환
+    PlainSerializer(lambda p: serialize_phone_optional(p, "E164") if p else None),  # JSON 직렬화
+    WithJsonSchema({"type": "string", "example": "+821012345678", "nullable": True}),  # OpenAPI 문서용 스키마
+]

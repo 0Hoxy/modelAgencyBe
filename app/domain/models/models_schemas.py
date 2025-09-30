@@ -2,10 +2,9 @@ from datetime import date
 from enum import Enum
 from uuid import UUID
 
-from phonenumbers import PhoneNumber
-from pydantic import BaseModel, Field, field_validator, model_validator, field_serializer
+from pydantic import BaseModel, Field, model_validator
 
-from app.shared import validate_phone, serialize_phone, validate_phone_optional, serialize_phone_optional
+from app.shared import ValidatedPhoneNumber, ValidatedPhoneNumberOptional
 
 
 class Gender(str, Enum):
@@ -63,7 +62,7 @@ class ModelBase(BaseModel):
     stage_name: str | None = Field(None, max_length=100)
     birth_date: date = Field(...)
     gender: Gender = Field(...)
-    phone: PhoneNumber = Field(...)
+    phone: ValidatedPhoneNumber = Field(...)
     nationality: str | None = Field(max_length=50)
     instagram: str | None = Field(None, max_length=100)
     youtube: str | None = Field(None, max_length=100)
@@ -82,15 +81,6 @@ class ModelBase(BaseModel):
     shoes_size: str | None = Field(None, max_length=10)
     is_foreigner: bool = Field(...)
 
-    @field_validator('phone')
-    @classmethod
-    def _validate_phone(cls, v) -> PhoneNumber:
-        return validate_phone(v)
-
-    @field_serializer('phone')
-    def _serialize_phone(self, phone: PhoneNumber) -> str:
-        return serialize_phone(phone)
-
     @model_validator(mode='after')
     def _validate_tattoo_info(self):
         if self.has_tattoo and (not self.tattoo_location or not self.tattoo_size):
@@ -102,23 +92,14 @@ class CreateDomesticModel(ModelBase):
     #has_agency가 True일 경우 agency_name은 필수로 들어가야 함
     agency_name: str | None = Field(None, max_length=100)
     agency_manager_name: str | None = Field(None, max_length=100)
-    agency_manager_phone: PhoneNumber | None = Field(None)
+    agency_manager_phone: ValidatedPhoneNumberOptional = Field(None)
     tiktok: str | None = Field(None, max_length=100)
-
-    @field_validator('agency_manager_phone', mode='before')
-    @classmethod
-    def _validate_agency_phone(cls, v) -> PhoneNumber | None:
-        return validate_phone_optional(v)
-
-    @field_serializer('agency_manager_phone')
-    def _serialize_agency_phone(self, phone: PhoneNumber | None) -> str | None:
-        return serialize_phone_optional(phone)
 
     @model_validator(mode='after')
     def _validate_agency(self):
         if self.has_agency and not self.agency_name:
             raise ValueError('소속사가 있는 경우 소속사명은 필수입니다.')
-        if len(self.has_manager_name) not in (1, 2, 3):
+        if self.agency_manager_name and len(self.agency_manager_name) not in (1, 2, 3):
             raise ValueError('담당자 이름은 1~3글자 이어야합니다.')
         return self
 
@@ -136,11 +117,12 @@ class ReadGlobalModel(CreateGlobalModel):
     id: UUID = Field(...)
 
 class UpdateDomesticModel(BaseModel):
+    id: UUID = Field(...)
     name: str | None = Field(None, min_length=1, max_length=100)
     stage_name: str | None = Field(None, max_length=100)
     birth_date: date | None = None
     gender: Gender | None = None
-    phone: PhoneNumber = Field(None)
+    phone: ValidatedPhoneNumberOptional = Field(None)
     nationality: str | None = Field(None, max_length=50)
     instagram: str | None = Field(None, max_length=100)
     youtube: str | None = Field(None, max_length=100)
@@ -161,25 +143,17 @@ class UpdateDomesticModel(BaseModel):
     has_agency: bool | None = None
     agency_name: str | None = Field(None, max_length=100)
     agency_manager_name: str | None = Field(None, max_length=100)
-    agency_manager_phone: PhoneNumber | None = Field(None)
+    agency_manager_phone: ValidatedPhoneNumberOptional = Field(None)
     tiktok: str | None = Field(None, max_length=100)
-
-    @field_validator('phone', 'agency_manager_phone', mode='before')
-    @classmethod
-    def _validate_phones(cls, v) -> PhoneNumber | None:
-        return validate_phone_optional(v)
-
-    @field_serializer('phone', 'agency_manager_phone')
-    def _serialize_phones(self, phone: PhoneNumber | None) -> str | None:
-        return serialize_phone_optional(phone)
 
 
 class UpdateGlobalModel(BaseModel):
+    id: UUID = Field(...)
     name: str | None = Field(None, min_length=1, max_length=100)
     stage_name: str | None = Field(None, max_length=100)
     birth_date: date | None = None
     gender: Gender | None = None
-    phone: PhoneNumber | None = Field(None)
+    phone: ValidatedPhoneNumberOptional = Field(None)
     nationality: str | None = Field(None, max_length=50)
     instagram: str | None = Field(None, max_length=100)
     youtube: str | None = Field(None, max_length=100)
@@ -202,17 +176,10 @@ class UpdateGlobalModel(BaseModel):
     korean_level: KoreanLevel | None = None
     visa_type: VisaType | None = None
 
-    @field_validator('phone', mode='before')
-    @classmethod
-    def _validate_phone(cls, v) -> PhoneNumber | None:
-        return validate_phone_optional(v)
-
-    @field_serializer('phone')
-    def _serialize_phone(self, phone: PhoneNumber | None) -> str | None:
-        return serialize_phone_optional(phone)
-
 class DeleteModel(BaseModel):
     id: UUID = Field(...)
 
 
-
+class ModelResponse(BaseModel):
+    name: str = Field(...)
+    message : str = Field(...)
