@@ -16,8 +16,7 @@ async def get_revisit_info():
 
 @app.post("/domestic/revisit-verification")
 async def get_revisit_verification(request: ReadRevisitedModel):
-    data = await request.body()
-    result = await models_services.get_domestic_model_by_info(data)
+    result = await models_services.get_domestic_model_by_info(request)
     return result
 
 @app.post("/global/revisit-verification")
