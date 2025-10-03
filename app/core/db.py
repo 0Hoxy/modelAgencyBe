@@ -44,4 +44,27 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, *args)
 
+    async def fetchmany(self, query: str, *args) -> List[asyncpg.Record] :
+        """특정 개수 행 조회"""
+        async with self.pool.acquire() as conn:
+            return await conn.fetchmany(query, *args)
+
+    async def transaction(self):
+        """트랜잭션 컨텍스트 매니저"""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                yield conn
+
+    async def execute_transaction(self, conn: asyncpg.Connection, query: str, *args):
+        """트랜잭션 내에서 쿼리 실행"""
+        return await conn.execute(query, *args)
+
+    async def fetchrow_transaction(self, conn: asyncpg.Connection, query: str, *args):
+        """트랜잭션 내에서 단일 행 조회"""
+        return await conn.fetchrow(query, *args)
+
+    async def fetch_transaction(self, conn: asyncpg.Connection, query: str, *args):
+        """트랜잭션 내에서 여러 행 조회"""
+        return await conn.fetch(query, *args)
+
 db = Database()

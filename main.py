@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 
-import phonenumbers
-from fastapi import FastAPI
-from phonenumbers import carrier
+from fastapi import FastAPI, Body
 
 from app.core.db import db
 from app.domain.models import models_router
+from app.domain.models.models_schemas import ReadRevisitedModel
+from app.domain.models.models_services import models_services
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,6 +52,7 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 if __name__ == "__main__":
     import uvicorn

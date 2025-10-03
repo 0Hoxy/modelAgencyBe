@@ -4,6 +4,7 @@ import asyncpg
 
 from app.core.base_repository import BaseRepository
 from app.core.db import db
+from app.domain.models.models_schemas import ReadRevisitedModel, ReadDomesticModel
 
 
 class ModelsRepository(BaseRepository):
@@ -38,13 +39,14 @@ class ModelsRepository(BaseRepository):
 
     async def get_domestic_model_by_info(self, name: str, phone: str, birth: date) -> asyncpg.Record:
         query = (
-            f"SELECT id, name, stage_name, birth_date, gender, phone, nationality, agency_name, agency_manager_name, agency_manager_phone,"
-                 f"instagram, tictok, youtube, address_city, address_district, address_street, special_abilities, other_language, tattoo_location,"
-                 f"tattoo_size "
+            f"SELECT id, name, stage_name, birth_date, gender, phone, nationality, agency_name, agency_manager_name, agency_manager_phone, "
+            f"instagram, tictok, youtube, address_city, address_district, address_street, special_abilities, other_language, tattoo_location, "
+            f"tattoo_size "
             f"FROM {self.table_name} "
-            f"WHERE name={name}, phone={phone}, birth_date={birth}, is_foreigner=false")
+            f"WHERE name = $1 AND phone = $2 AND birth_date = $3 AND is_foreigner = false"
+        )
 
-        return await db.fetchrow(query)
+        return await db.fetchrow(query, name, phone, birth)
 
     async def get_foreign_model_by_info(self, name: str, phone: str, birth: date) -> asyncpg.Record:
         query = (

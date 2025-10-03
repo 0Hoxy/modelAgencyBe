@@ -50,44 +50,6 @@ class BaseRepository:
         """
         return await db.fetchrow(query, *data.values())
 
-    async def get_by_id(self, record_id: int) -> Optional[asyncpg.Record]:
-        """
-        ID로 단일 데이터를 조회합니다.
-
-        Args:
-            record_id: 조회할 레코드의 ID
-
-        Returns:
-            asyncpg.Record: 조회된 레코드
-            None: 해당 ID의 레코드가 없을 경우
-
-        Raises:
-            asyncpg.PostgresError: 데이터베이스 오류 발생 시
-        """
-        # WHERE 절로 특정 ID의 레코드만 조회
-        query = f"SELECT * FROM {self.table_name} WHERE id = $1"
-        return await db.fetchrow(query, record_id)
-
-    async def get_all(self, limit: int = 100, offset: int = 0) -> List[asyncpg.Record]:
-        """
-        전체 데이터를 페이지네이션하여 조회합니다.
-
-        Args:
-            limit: 한 번에 조회할 최대 레코드 수 (기본값: 100)
-            offset: 건너뛸 레코드 수 (기본값: 0)
-                   예: offset=20이면 21번째 레코드부터 조회
-
-        Returns:
-            List[asyncpg.Record]: 조회된 레코드 리스트
-            빈 리스트: 조회된 레코드가 없을 경우
-
-        Raises:
-            asyncpg.PostgresError: 데이터베이스 오류 발생 시
-        """
-        # LIMIT으로 최대 개수 제한, OFFSET으로 시작 위치 지정
-        query = f"SELECT * FROM {self.table_name} LIMIT $1 OFFSET $2"
-        return await db.fetch(query, limit, offset)
-
     async def update(self, record_id: int, data: Dict[str, Any]) -> Optional[asyncpg.Record]:
         """
         기존 데이터를 수정합니다.
@@ -139,6 +101,44 @@ class BaseRepository:
         # execute 결과가 "DELETE 1"이면 삭제 성공
         return result == "DELETE 1"
 
+    async def get_by_id(self, record_id: int) -> Optional[asyncpg.Record]:
+        """
+        ID로 단일 데이터를 조회합니다.
+
+        Args:
+            record_id: 조회할 레코드의 ID
+
+        Returns:
+            asyncpg.Record: 조회된 레코드
+            None: 해당 ID의 레코드가 없을 경우
+
+        Raises:
+            asyncpg.PostgresError: 데이터베이스 오류 발생 시
+        """
+        # WHERE 절로 특정 ID의 레코드만 조회
+        query = f"SELECT * FROM {self.table_name} WHERE id = $1"
+        return await db.fetchrow(query, record_id)
+
+    async def get_all(self, limit: int = 100, offset: int = 0) -> List[asyncpg.Record]:
+        """
+        전체 데이터를 페이지네이션하여 조회합니다.
+
+        Args:
+            limit: 한 번에 조회할 최대 레코드 수 (기본값: 100)
+            offset: 건너뛸 레코드 수 (기본값: 0)
+                   예: offset=20이면 21번째 레코드부터 조회
+
+        Returns:
+            List[asyncpg.Record]: 조회된 레코드 리스트
+            빈 리스트: 조회된 레코드가 없을 경우
+
+        Raises:
+            asyncpg.PostgresError: 데이터베이스 오류 발생 시
+        """
+        # LIMIT으로 최대 개수 제한, OFFSET으로 시작 위치 지정
+        query = f"SELECT * FROM {self.table_name} LIMIT $1 OFFSET $2"
+        return await db.fetch(query, limit, offset)
+
     async def exists(self, record_id: int) -> bool:
         """
         특정 ID의 레코드가 존재하는지 확인합니다.
@@ -162,3 +162,73 @@ class BaseRepository:
         result = await db.fetchrow(query, record_id)
         # result가 None이 아니면 exists 키의 값 반환, None이면 False
         return result['exists'] if result else False
+
+    # ========== 트랜잭션 지원 메서드들 ==========
+
+    async def create_transaction(self, conn: asyncpg.Connection, data: Dict[str, Any]) -> Optional[asyncpg.Record]:
+        """
+        트랜잭션 내에서 새로운 데이터를 생성합니다.
+
+        Args:
+            conn: 트랜잭션 연결 객체
+            data: 생성할 데이터 (컬럼명: 값)
+
+        Returns:
+            asyncpg.Record: 생성된 레코드 (모든 컬럼 포함)
+            None: 생성 실패 시
+
+        Raises:
+            asyncpg.PostgresError: 데이터베이스 오류 발생 시
+        """
+        columns = ", ".join(data.keys())
+        placeholders = ", ".join(f"${i + 1}" for i in range(len(data)))
+        query = f"""
+            INSERT INTO {self.table_name} ({columns})
+            VALUES ({placeholders})
+            RETURNING *
+        """
+        return await conn.fetchrow(query, *data.values())
+
+    async def update_transaction(self, conn: asyncpg.Connection, record_id: int, data: Dict[str, Any]) -> Optional[asyncpg.Record]:
+        """
+        트랜잭션 내에서 기존 데이터를 수정합니다.
+
+        Args:
+            conn: 트랜잭션 연결 객체
+            record_id: 수정할 레코드의 ID
+            data: 수정할 데이터 (컬럼명: 값)
+
+        Returns:
+            asyncpg.Record: 수정된 레코드 (모든 컬럼 포함)
+            None: 해당 ID의 레코드가 없을 경우
+
+        Raises:
+            asyncpg.PostgresError: 데이터베이스 오류 발생 시
+        """
+        set_clause = ", ".join(f"{key} = ${i + 2}" for i, key in enumerate(data.keys()))
+        query = f"""
+            UPDATE {self.table_name}
+            SET {set_clause}
+            WHERE id = $1
+            RETURNING *
+        """
+        return await conn.fetchrow(query, record_id, *data.values())
+
+    async def delete_transaction(self, conn: asyncpg.Connection, record_id: int) -> bool:
+        """
+        트랜잭션 내에서 데이터를 삭제합니다.
+
+        Args:
+            conn: 트랜잭션 연결 객체
+            record_id: 삭제할 레코드의 ID
+
+        Returns:
+            bool: True - 삭제 성공 (1개 레코드 삭제됨)
+                  False - 삭제 실패 (해당 ID의 레코드 없음)
+
+        Raises:
+            asyncpg.PostgresError: 데이터베이스 오류 발생 시
+        """
+        query = f"DELETE FROM {self.table_name} WHERE id = $1"
+        result = await conn.execute(query, record_id)
+        return result == "DELETE 1"

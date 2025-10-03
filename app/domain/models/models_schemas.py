@@ -183,3 +183,11 @@ class DeleteModel(BaseModel):
 class ModelResponse(BaseModel):
     name: str = Field(...)
     message : str = Field(...)
+
+class ReadRevisitedModel(BaseModel):
+    name: str = Field(...)
+    phone: str = Field(...)
+    birth: date = Field(...)
+
+class GetModelId(BaseModel):
+    id: UUID = Field(...)
