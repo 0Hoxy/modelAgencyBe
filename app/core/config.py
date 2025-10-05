@@ -6,7 +6,8 @@ class Settings(BaseSettings):
         frozen=True,
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8')
+        env_file_encoding='utf-8',
+        extra='ignore')
 
     # 데이터베이스 설정
     DATABASE_URL: str
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
+    REFRESH_TOKEN_EXPIRE_DAYS: int
 
     # CORS 설정
     ALLOWED_ORIGINS: str
@@ -33,5 +35,12 @@ class Settings(BaseSettings):
     # 파일 업로드 설정
     MAX_FILE_SIZE: int
     UPLOAD_DIR: str
+
+    # SMTP 설정
+    SMTP_HOST: str
+    SMTP_PORT: int
+    SMTP_USERNAME: str
+    SMTP_PASSWORD: str
+    SMTP_FROM_EMAIL: str
 
 settings: Final[Settings] = Settings()

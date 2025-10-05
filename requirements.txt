@@ -5,3 +5,16 @@ pydantic-settings==2.11.0
 python-dotenv==1.1.1
 asyncpg==0.30.0
 phonenumbers==9.0.15
+
+# 보안 및 인증
+bcrypt==4.1.2
+PyJWT==2.8.0
+email-validator==2.1.0
+python-multipart==0.0.9
+
+# QR 코드 생성
+qrcode==8.2
+Pillow==11.3.0
+
+# 엑셀 생성
+openpyxl==3.1.5

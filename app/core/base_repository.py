@@ -1,4 +1,3 @@
-import uuid
 from typing import Dict, Any, Optional, List
 
 import asyncpg
@@ -81,7 +80,7 @@ class BaseRepository:
         """
         return await db.fetchrow(query, record_id, *data.values())
 
-    async def delete(self, record_id: int) -> bool:
+    async def delete(self, record_id: int) -> Optional[asyncpg.Record]:
         """
         데이터를 삭제합니다.
 
@@ -96,10 +95,8 @@ class BaseRepository:
             asyncpg.PostgresError: 데이터베이스 오류 발생 시
         """
         # WHERE 절로 특정 ID의 레코드 삭제
-        query = f"DELETE FROM {self.table_name} WHERE id = $1"
-        result = await db.execute(query, record_id)
-        # execute 결과가 "DELETE 1"이면 삭제 성공
-        return result == "DELETE 1"
+        query = f"DELETE FROM {self.table_name} WHERE id = $1 RETURNING *"
+        return await db.execute(query, record_id)
 
     async def get_by_id(self, record_id: int) -> Optional[asyncpg.Record]:
         """
@@ -214,21 +211,6 @@ class BaseRepository:
         """
         return await conn.fetchrow(query, record_id, *data.values())
 
-    async def delete_transaction(self, conn: asyncpg.Connection, record_id: int) -> bool:
-        """
-        트랜잭션 내에서 데이터를 삭제합니다.
-
-        Args:
-            conn: 트랜잭션 연결 객체
-            record_id: 삭제할 레코드의 ID
-
-        Returns:
-            bool: True - 삭제 성공 (1개 레코드 삭제됨)
-                  False - 삭제 실패 (해당 ID의 레코드 없음)
-
-        Raises:
-            asyncpg.PostgresError: 데이터베이스 오류 발생 시
-        """
-        query = f"DELETE FROM {self.table_name} WHERE id = $1"
-        result = await conn.execute(query, record_id)
-        return result == "DELETE 1"
+    async def delete_transaction(self, conn: asyncpg.Connection, record_id: int) -> Optional[asyncpg.Record]:
+        query = f"DELETE FROM {self.table_name} WHERE id = $1 RETURNING *"
+        return await conn.fetchrow(query, record_id)

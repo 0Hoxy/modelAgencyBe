@@ -10,6 +10,17 @@ from .validators import (
     ValidatedPhoneNumber,
     ValidatedPhoneNumberOptional,
 )
+from .security import (
+    password_hasher,
+    jwt_handler,
+    PasswordHasher,
+    JWTHandler,
+)
+from .dependencies import (
+    get_current_user,
+    require_admin,
+    require_admin_or_director,
+)
 
 __all__ = [
     "validate_phone",
@@ -18,4 +29,11 @@ __all__ = [
     "serialize_phone_optional",
     "ValidatedPhoneNumber",
     "ValidatedPhoneNumberOptional",
+    "password_hasher",
+    "jwt_handler",
+    "PasswordHasher",
+    "JWTHandler",
+    "get_current_user",
+    "require_admin",
+    "require_admin_or_director",
 ]

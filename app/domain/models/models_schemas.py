@@ -12,11 +12,30 @@ class Gender(str, Enum):
     FEMALE = "FEMALE"
     OTHERS = "OTHERS"
 
+    def to_korean(self) -> str:
+        """한글 변환"""
+        mapping = {
+            "MALE": "남성",
+            "FEMALE": "여성",
+            "OTHERS": "기타"
+        }
+        return mapping.get(self.value, self.value)
+
 class KoreanLevel(str, Enum):
     BAD = "BAD"
     NOT_BAD = "NOT_BAD"
     GOOD = "GOOD"
     VERY_GOOD = "VERY_GOOD"
+
+    def to_korean(self) -> str:
+        """한글 변환"""
+        mapping = {
+            "BAD": "낮음",
+            "NOT_BAD": "보통",
+            "GOOD": "좋음",
+            "VERY_GOOD": "매우 좋음"
+        }
+        return mapping.get(self.value, self.value)
 
 class VisaType(str, Enum):
     C1 = "C1"
@@ -56,6 +75,11 @@ class VisaType(str, Enum):
     A3 = "A3"
     B1 = "B1"
     B2 = "B2"
+
+    def to_korean(self) -> str:
+        """한글 변환 (비자 타입은 코드 그대로 반환)"""
+        # 비자 타입은 국제적으로 통용되는 코드이므로 그대로 사용
+        return self.value
 
 class ModelBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
