@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Body
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.db import db
+from app.core.config import settings
 from app.domain.admins import admins_router
 from app.domain.excel import excel_router
 from app.domain.models import models_router
@@ -32,6 +34,15 @@ app = FastAPI(
     version="1.0.0",
     description="모델 에이전시 백엔드 API",
     lifespan=lifespan)
+
+# CORS 미들웨어 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS.split(","),  # .env에서 설정한 허용 도메인 목록
+    allow_credentials=True,  # 쿠키 등 인증 정보 포함 허용
+    allow_methods=["*"],  # 모든 HTTP 메소드 허용 (GET, POST, PUT, DELETE 등)
+    allow_headers=["*"],  # 모든 헤더 허용
+)
 
 app.include_router(models_router.app)
 app.include_router(admins_router.app)
