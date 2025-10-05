@@ -210,7 +210,7 @@ class ModelResponse(BaseModel):
 
 class ReadRevisitedModel(BaseModel):
     name: str = Field(...)
-    phone: str = Field(...)
+    phone: ValidatedPhoneNumber = Field(...)
     birth: date = Field(...)
 
 class GetModelId(BaseModel):

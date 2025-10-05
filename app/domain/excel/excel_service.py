@@ -104,7 +104,7 @@ class ExcelService:
                     model.agency_manager_name or "",
                     model.agency_manager_phone or "",
                     model.instagram or "",
-                    model.tiktok or "",
+                    model.tictok or "",
                     model.youtube or "",
                     model.address_city or "",
                     model.address_district or "",

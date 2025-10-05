@@ -3,9 +3,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Body
 
 from app.core.db import db
+from app.domain.admins import admins_router
+from app.domain.excel import excel_router
 from app.domain.models import models_router
 from app.domain.models.models_schemas import ReadRevisitedModel
 from app.domain.models.models_services import models_services
+from app.domain.smtp import smtp_router
 
 
 @asynccontextmanager
@@ -31,6 +34,9 @@ app = FastAPI(
     lifespan=lifespan)
 
 app.include_router(models_router.app)
+app.include_router(admins_router.app)
+app.include_router(smtp_router.app)
+app.include_router(excel_router.app)
 
 @app.get("/")
 async def root():

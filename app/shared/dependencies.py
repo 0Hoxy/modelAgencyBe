@@ -5,7 +5,8 @@ FastAPI Dependencies
 """
 from typing import Optional
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer
+from fastapi.security.http import HTTPAuthorizationCredentials
 
 from app.shared import jwt_handler
 from app.domain.accounts.account_repository import AccountRepository
@@ -17,7 +18,7 @@ security = HTTPBearer()
 account_repository = AccountRepository()
 
 
-async def get_current_user(credentials: HTTPAuthCredentials = Depends(security)) -> dict:
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """
     현재 로그인한 사용자 정보 반환
     - JWT 토큰 검증

@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import HTTPException
 
 from app.core.db import db
+from app.shared.validators import serialize_phone
 from app.domain.models.models_repository import models_repository
 from app.domain.models.models_schemas import (ReadDomesticModel, ReadGlobalModel, CreateDomesticModel,
                                               CreateGlobalModel, UpdateDomesticModel, ModelResponse, UpdateGlobalModel,
@@ -56,9 +57,12 @@ class ModelsServices:
     async def get_domestic_model_by_info(self, model_info: ReadRevisitedModel) -> ReadDomesticModel:
         """이름, 전화번호, 생년월일로 국내 모델 조회"""
         try:
+            # PhoneNumber 객체를 E.164 문자열로 변환
+            phone_str = serialize_phone(model_info.phone, "E164")
+            
             result = await self.repository.get_domestic_model_by_info(
                 model_info.name, 
-                model_info.phone, 
+                phone_str, 
                 model_info.birth
             )
             
@@ -80,9 +84,12 @@ class ModelsServices:
     async def get_foreign_model_by_info(self, model_info: ReadRevisitedModel) -> ReadGlobalModel:
         """이름, 전화번호, 생년월일로 해외 모델 조회"""
         try:
+            # PhoneNumber 객체를 E.164 문자열로 변환
+            phone_str = serialize_phone(model_info.phone, "E164")
+            
             result = await self.repository.get_foreign_model_by_info(
                 model_info.name,
-                model_info.phone,
+                phone_str,
                 model_info.birth
             )
             
