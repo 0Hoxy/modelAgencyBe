@@ -87,12 +87,12 @@ class ModelBase(BaseModel):
     birth_date: date = Field(...)
     gender: Gender = Field(...)
     phone: ValidatedPhoneNumber = Field(...)
-    nationality: str | None = Field(max_length=50)
+    nationality: str | None = Field(default=None, max_length=50)
     instagram: str | None = Field(None, max_length=100)
     youtube: str | None = Field(None, max_length=100)
-    address_city: str | None = Field(max_length=50)
-    address_district: str | None = Field(max_length=50)
-    address_street: str | None = Field(max_length=200)
+    address_city: str | None = Field(default=None, max_length=50)
+    address_district: str | None = Field(default=None, max_length=50)
+    address_street: str | None = Field(default=None, max_length=200)
     special_abilities: str | None = Field(None, max_length=500)
     other_languages: str | None = Field(None, max_length=200)
     has_tattoo: bool = Field(default=False)
@@ -103,7 +103,7 @@ class ModelBase(BaseModel):
     top_size: str | None = Field(None, max_length=10)
     bottom_size: str | None = Field(None, max_length=10)
     shoes_size: str | None = Field(None, max_length=10)
-    is_foreigner: bool = Field(...)
+    is_foreigner: bool = Field(default=False)  # 백엔드에서 자동 설정
 
     @model_validator(mode='after')
     def _validate_tattoo_info(self):
@@ -117,7 +117,7 @@ class CreateDomesticModel(ModelBase):
     agency_name: str | None = Field(None, max_length=100)
     agency_manager_name: str | None = Field(None, max_length=100)
     agency_manager_phone: ValidatedPhoneNumberOptional = Field(None)
-    tiktok: str | None = Field(None, max_length=100)
+    tictok: str | None = Field(None, max_length=100)
 
     @model_validator(mode='after')
     def _validate_agency(self):
@@ -168,7 +168,7 @@ class UpdateDomesticModel(BaseModel):
     agency_name: str | None = Field(None, max_length=100)
     agency_manager_name: str | None = Field(None, max_length=100)
     agency_manager_phone: ValidatedPhoneNumberOptional = Field(None)
-    tiktok: str | None = Field(None, max_length=100)
+    tictok: str | None = Field(None, max_length=100)
 
 
 class UpdateGlobalModel(BaseModel):

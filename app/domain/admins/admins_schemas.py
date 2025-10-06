@@ -7,30 +7,34 @@
 from datetime import date, datetime
 from typing import Optional
 from enum import Enum
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
 # ===== 카메라 테스트 관련 =====
 
 class CameraTestStatus(str, Enum):
-    """카메라 테스트 상태"""
-    READY = "READY"  # 준비중
-    TESTING = "TESTING"  # 테스트중
+    """카메라 테스트 상태 (DB enum camerateststatusenum과 매핑)"""
+    PENDING = "PENDING"      # 대기
+    CONFIRMED = "CONFIRMED"  # 확정/진행중
     COMPLETED = "COMPLETED"  # 완료
+    CANCELLED = "CANCELLED"  # 취소
 
     def to_korean(self) -> str:
         """한글 변환"""
         mapping = {
-            "READY": "준비중",
-            "TESTING": "테스트중",
-            "COMPLETED": "완료"
+            "PENDING": "대기",
+            "CONFIRMED": "확정",
+            "COMPLETED": "완료",
+            "CANCELLED": "취소",
         }
         return mapping.get(self.value, self.value)
 
 
 class CameraTestCreate(BaseModel):
     """카메라 테스트 등록 요청"""
-    model_id: int = Field(..., description="모델 ID")
+    model_id: UUID = Field(..., description="모델 ID")
 
 
 class CameraTestStatusUpdate(BaseModel):
@@ -41,8 +45,8 @@ class CameraTestStatusUpdate(BaseModel):
 class CameraTestResponse(BaseModel):
     """카메라 테스트 응답"""
     id: int
-    model_id: int
-    is_tested: bool
+    model_id: UUID
+    is_tested: CameraTestStatus
     visited_at: datetime
 
     class Config:
@@ -70,7 +74,7 @@ class ModelSearchParams(BaseModel):
 
 class PhysicalSizeResponse(BaseModel):
     """모델 신체 사이즈 응답"""
-    model_id: int
+    model_id: UUID
     name: str
     height: Optional[float] = None
     weight: Optional[float] = None

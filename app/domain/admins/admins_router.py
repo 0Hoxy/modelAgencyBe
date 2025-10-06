@@ -4,7 +4,10 @@
 - 카메라 테스트 관리
 - 대시보드 통계
 """
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query
+from datetime import date
 
 from app.shared import require_admin, require_admin_or_director
 from app.domain.models.models_services import models_services
@@ -145,7 +148,7 @@ async def update_global_model(
 
 @app.get("/models/{model_id}/physical", response_model=PhysicalSizeResponse)
 async def get_physical_size(
-    model_id: int,
+    model_id: UUID,
     current_user: dict = Depends(require_admin)
 ):
     """
@@ -172,7 +175,7 @@ async def create_camera_test(
 
 @app.put("/models/{model_id}/cameraTest", response_model=CameraTestResponse)
 async def update_camera_test_status(
-    model_id: int,
+    model_id: UUID,
     request: CameraTestStatusUpdate,
     current_user: dict = Depends(require_admin_or_director)
 ):
@@ -198,3 +201,15 @@ async def get_dashboard(
     - 관리자 또는 디렉터 권한 필요
     """
     return await admins_service.get_dashboard_stats()
+
+@app.get("/models/cameraTest")
+async def get_camera_test(
+    target_date: date | None = Query(None, description="YYYY-MM-DD. 미전송 시 오늘 기준"),
+    current_user: dict = Depends(require_admin_or_director)
+):
+    """
+    카메라테스트 목록 조회
+    - 관리자 또는 디렉터 권한 필요
+    - 특정 날짜(target_date)의 카메라테스트를 모델당 1건(가장 이른 방문)으로 그룹핑하여 시간 오름차순 반환
+    """
+    return await admins_service.get_camera_test(target_date)

@@ -6,6 +6,8 @@
 """
 from typing import Optional, List
 from datetime import date, datetime, timedelta
+from uuid import UUID
+
 import asyncpg
 
 from app.core.base_repository import BaseRepository
@@ -93,7 +95,7 @@ class AdminsRepository(BaseRepository):
                 {f"korean_level, visa_type, first_language," if is_foreigner else "agency_name, agency_manager_name, agency_manager_phone,"}
                 height, weight, top_size, bottom_size, shoes_size,
                 has_tattoo, tattoo_location, tattoo_size,
-                instagram, youtube, {f"kakaotalk," if is_foreigner else "tiktok,"}
+                instagram, youtube, {f"kakaotalk," if is_foreigner else "tictok,"}
                 created_at
             FROM {self.table_name}
             WHERE {where_clause}
@@ -162,7 +164,7 @@ class AdminsRepository(BaseRepository):
 
     # ===== 신체 사이즈 조회 =====
     
-    async def get_physical_size(self, model_id: int) -> Optional[asyncpg.Record]:
+    async def get_physical_size(self, model_id: UUID) -> Optional[asyncpg.Record]:
         """모델 신체 사이즈 조회"""
         query = f"""
             SELECT id as model_id, name, height, weight, top_size, bottom_size, shoes_size
@@ -173,7 +175,7 @@ class AdminsRepository(BaseRepository):
 
     # ===== 카메라 테스트 관리 =====
     
-    async def get_camera_test(self, model_id: int) -> Optional[asyncpg.Record]:
+    async def get_camera_test(self, model_id: UUID) -> Optional[asyncpg.Record]:
         """카메라 테스트 조회"""
         query = """
             SELECT id, model_id, is_tested, visited_at
@@ -187,39 +189,31 @@ class AdminsRepository(BaseRepository):
     async def create_camera_test_transaction(
         self,
         conn: asyncpg.Connection,
-        model_id: int,
+        model_id: UUID,
         visited_at: datetime
     ) -> asyncpg.Record:
         """카메라 테스트 등록 (트랜잭션)"""
         query = """
             INSERT INTO cameratest (model_id, is_tested, visited_at)
-            VALUES ($1, $2, $3)
+            VALUES ($1, $2::camerateststatusenum, $3)
             RETURNING id, model_id, is_tested, visited_at
         """
-        return await conn.fetchrow(query, model_id, False, visited_at)
+        return await conn.fetchrow(query, model_id, 'PENDING', visited_at)
     
     async def update_camera_test_status_transaction(
         self,
         conn: asyncpg.Connection,
-        model_id: int,
+        model_id: UUID,
         status: CameraTestStatus
     ) -> Optional[asyncpg.Record]:
         """카메라 테스트 상태 변경 (트랜잭션)"""
-        # 상태를 boolean으로 변환
-        is_tested_map = {
-            CameraTestStatus.READY: False,
-            CameraTestStatus.TESTING: False,
-            CameraTestStatus.COMPLETED: True
-        }
-        is_tested = is_tested_map.get(status, False)
-        
         query = """
             UPDATE cameratest
-            SET is_tested = $2
+            SET is_tested = $2::camerateststatusenum
             WHERE model_id = $1
             RETURNING id, model_id, is_tested, visited_at
         """
-        return await conn.fetchrow(query, model_id, is_tested)
+        return await conn.fetchrow(query, model_id, status.value)
 
     # ===== 대시보드 통계 =====
     
@@ -228,50 +222,73 @@ class AdminsRepository(BaseRepository):
         start_date: date,
         end_date: date
     ) -> List[asyncpg.Record]:
-        """일별 등록 인원 통계"""
-        query = f"""
-            SELECT 
-                DATE(created_at) as date,
-                COUNT(*) as count
-            FROM {self.table_name}
-            WHERE DATE(created_at) BETWEEN $1 AND $2
-            GROUP BY DATE(created_at)
+        """일별 등록 인원 통계 (중복 제거: 같은 model_id는 1명으로 카운트)"""
+        query = """
+            SELECT
+                DATE(visited_at) as date,
+                COUNT(DISTINCT model_id) as count
+            FROM cameratest
+            WHERE DATE(visited_at) BETWEEN $1 AND $2
+            GROUP BY DATE(visited_at)
             ORDER BY date DESC
         """
         return await db.fetch(query, start_date, end_date)
+
+    async def get_cameratests_by_date(self, target_date: date) -> List[asyncpg.Record]:
+        """특정 날짜의 카메라테스트 + 모델 정보
+
+        - 같은 model_id는 한 번만 반환 (해당 날짜의 가장 이른 방문시간)
+        - 정렬: cameratest.visited_at 오름차순
+        - 반환 컬럼: 모델(name, birth_date, nationality, height, agency_name, visa_type),
+                    cameratest(is_tested, visited_at, id as cameratest_id, model_id)
+        """
+        query = """
+            SELECT
+                ct.id               AS id,
+                ct.model_id         AS model_id,
+                ct.is_tested        AS is_tested,
+                ct.visited_at       AS visited_at,
+                m.name              AS name,
+                m.birth_date        AS birth_date,
+                m.nationality       AS nationality,
+                m.height            AS height,
+                m.agency_name       AS agency_name,
+                m.visa_type         AS visa_type
+            FROM (
+                SELECT DISTINCT ON (model_id)
+                    id, model_id, is_tested, visited_at
+                FROM cameratest
+                WHERE DATE(visited_at) = $1
+                ORDER BY model_id, visited_at ASC
+            ) ct
+            INNER JOIN models m ON m.id = ct.model_id
+            ORDER BY ct.visited_at ASC
+        """
+        return await db.fetch(query, target_date)
     
     async def get_today_registrations_count(self) -> int:
-        """금일 등록 모델 수"""
-        query = f"""
-            SELECT COUNT(*) as count
-            FROM {self.table_name}
-            WHERE DATE(created_at) = CURRENT_DATE
+        """금일 등록 인원 수 (중복 제거: 같은 model_id는 1명으로 카운트)"""
+        query = """
+            SELECT COUNT(DISTINCT model_id) as count
+            FROM cameratest
+            WHERE DATE(visited_at) = CURRENT_DATE
         """
         result = await db.fetchrow(query)
         return result["count"] if result else 0
     
     async def get_today_incomplete_camera_tests_count(self) -> int:
-        """금일 카메라테스트 미완료 인원"""
+        """금일 카메라테스트 미완료 인원 (중복 제거: 완료가 아닌 상태의 고유 model_id 수)"""
         query = """
-            SELECT COUNT(*) as count
+            SELECT COUNT(DISTINCT model_id) as count
             FROM cameratest
-            WHERE DATE(visited_at) = CURRENT_DATE AND is_tested = FALSE
+            WHERE DATE(visited_at) = CURRENT_DATE AND is_tested <> 'COMPLETED'
         """
         result = await db.fetchrow(query)
         return result["count"] if result else 0
     
     async def get_incomplete_addresses_count(self) -> int:
-        """주소록 등록 미완료 인원 (주소가 NULL이거나 비어있는 경우)"""
-        query = f"""
-            SELECT COUNT(*) as count
-            FROM {self.table_name}
-            WHERE address_city IS NULL 
-               OR address_city = ''
-               OR address_district IS NULL 
-               OR address_district = ''
-        """
-        result = await db.fetchrow(query)
-        return result["count"] if result else 0
+        """주소록 등록 미완료 인원: 현재 테이블 미구현이므로 0 고정 반환"""
+        return 0
 
 
 # Singleton 인스턴스

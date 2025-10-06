@@ -65,7 +65,7 @@ class AccountRepository(BaseRepository):
         query = f"""
             INSERT INTO {self.table_name} ({columns})
             VALUES ({placeholders})
-            RETURNING id, name, pid, role, provider, provider_id, created_at
+            RETURNING admin_id as id, name, pid, role, provider, provider_id, created_at
         """
         return await conn.fetchrow(query, *data.values())
 
@@ -90,7 +90,7 @@ class AccountRepository(BaseRepository):
             UPDATE {self.table_name}
             SET password = $2
             WHERE pid = $1
-            RETURNING id, name, pid, role, provider, created_at
+            RETURNING admin_id as id, name, pid, role, provider, created_at
         """
         return await conn.fetchrow(query, pid, new_password_hash)
 
@@ -111,8 +111,8 @@ class AccountRepository(BaseRepository):
         """
         query = f"""
             DELETE FROM {self.table_name}
-            WHERE id = $1
-            RETURNING id, name, pid, role
+            WHERE admin_id = $1
+            RETURNING admin_id as id, name, pid, role
         """
         return await conn.fetchrow(query, account_id)
 

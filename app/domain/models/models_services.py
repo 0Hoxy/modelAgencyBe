@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -9,6 +9,7 @@ from app.domain.models.models_repository import models_repository
 from app.domain.models.models_schemas import (ReadDomesticModel, ReadGlobalModel, CreateDomesticModel,
                                               CreateGlobalModel, UpdateDomesticModel, ModelResponse, UpdateGlobalModel,
                                               ReadRevisitedModel)
+from app.domain.admins.admins_repository import admins_repository
 
 
 class ModelsServices:
@@ -113,10 +114,29 @@ class ModelsServices:
         """국내 모델 등록"""
         try:
             async with db.transaction() as conn:
-                data_dict = create_data.model_dump()
+                # exclude_unset: 프론트엔드에서 보내지 않은 필드 제외
+                # exclude_none: None 값 제외 (DB 기본값 사용)
+                data_dict = create_data.model_dump(
+                    exclude_unset=True,
+                    exclude_none=True, 
+                    exclude={'id', 'is_foreigner', 'created_at', 'updated_at'}
+                )
                 data_dict['is_foreigner'] = False
+                # 전화번호를 E.164 형식으로 일관 저장
+                if 'phone' in data_dict and create_data.phone is not None:
+                    data_dict['phone'] = serialize_phone(create_data.phone, "E164")
+                if 'agency_manager_phone' in data_dict and create_data.agency_manager_phone is not None:
+                    data_dict['agency_manager_phone'] = serialize_phone(create_data.agency_manager_phone, "E164")
                 
-                await self.repository.create_transaction(conn, data_dict)
+                # 1) 모델 생성
+                created = await self.repository.create_transaction(conn, data_dict)
+                # 2) 카메라 테스트 초기 레코드 생성 (동일 트랜잭션)
+                if created and created.get('id'):
+                    await admins_repository.create_camera_test_transaction(
+                        conn=conn,
+                        model_id=created['id'],
+                        visited_at=datetime.now()
+                    )
                 
                 return ModelResponse(
                     name=data_dict['name'], 
@@ -132,10 +152,27 @@ class ModelsServices:
         """해외 모델 등록"""
         try:
             async with db.transaction() as conn:
-                data_dict = create_data.model_dump()
+                # exclude_unset: 프론트엔드에서 보내지 않은 필드 제외
+                # exclude_none: None 값 제외 (DB 기본값 사용)
+                data_dict = create_data.model_dump(
+                    exclude_unset=True,
+                    exclude_none=True, 
+                    exclude={'id', 'is_foreigner', 'created_at', 'updated_at'}
+                )
                 data_dict['is_foreigner'] = True
+                # 전화번호를 E.164 형식으로 일관 저장
+                if 'phone' in data_dict and create_data.phone is not None:
+                    data_dict['phone'] = serialize_phone(create_data.phone, "E164")
                 
-                await self.repository.create_transaction(conn, data_dict)
+                # 1) 모델 생성
+                created = await self.repository.create_transaction(conn, data_dict)
+                # 2) 카메라 테스트 초기 레코드 생성 (동일 트랜잭션)
+                if created and created.get('id'):
+                    await admins_repository.create_camera_test_transaction(
+                        conn=conn,
+                        model_id=created['id'],
+                        visited_at=datetime.now()
+                    )
                 
                 return ModelResponse(
                     name=data_dict['name'], 
@@ -152,6 +189,11 @@ class ModelsServices:
         """국내 모델 정보 수정"""
         try:
             data_dict = update_data.model_dump(exclude_none=True, exclude={'id'})
+            # 전화번호를 E.164 형식으로 일관 저장
+            if 'phone' in data_dict and update_data.phone is not None:
+                data_dict['phone'] = serialize_phone(update_data.phone, "E164")
+            if 'agency_manager_phone' in data_dict and update_data.agency_manager_phone is not None:
+                data_dict['agency_manager_phone'] = serialize_phone(update_data.agency_manager_phone, "E164")
 
             if not data_dict:
                 raise HTTPException(
@@ -161,6 +203,12 @@ class ModelsServices:
 
             async with db.transaction() as conn:
                 await self.repository.update_transaction(conn, record_id=update_data.id, data=data_dict)
+                # 방문 기록 남기기 (동일 트랜잭션): PENDING 상태의 cameratest 추가
+                await admins_repository.create_camera_test_transaction(
+                    conn=conn,
+                    model_id=update_data.id,
+                    visited_at=datetime.now()
+                )
             
             return ModelResponse(
                 name=data_dict.get('name', '모델'),
@@ -178,6 +226,9 @@ class ModelsServices:
         """해외 모델 정보 수정"""
         try:
             data_dict = update_data.model_dump(exclude_none=True, exclude={'id'})
+            # 전화번호를 E.164 형식으로 일관 저장
+            if 'phone' in data_dict and update_data.phone is not None:
+                data_dict['phone'] = serialize_phone(update_data.phone, "E164")
 
             if not data_dict:
                 raise HTTPException(
@@ -187,6 +238,12 @@ class ModelsServices:
 
             async with db.transaction() as conn:
                 await self.repository.update_transaction(conn, record_id=update_data.id, data=data_dict)
+                # 방문 기록 남기기 (동일 트랜잭션): PENDING 상태의 cameratest 추가
+                await admins_repository.create_camera_test_transaction(
+                    conn=conn,
+                    model_id=update_data.id,
+                    visited_at=datetime.now()
+                )
             
             return ModelResponse(
                 name=data_dict.get('name', '모델'),

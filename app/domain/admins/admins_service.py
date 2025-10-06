@@ -6,6 +6,8 @@
 """
 from datetime import date, datetime, timedelta
 from typing import List
+from uuid import UUID
+
 from fastapi import HTTPException
 
 from app.core.db import db
@@ -94,7 +96,7 @@ class AdminsService:
 
     # ===== 신체 사이즈 조회 =====
 
-    async def get_physical_size(self, model_id: int) -> PhysicalSizeResponse:
+    async def get_physical_size(self, model_id: UUID) -> PhysicalSizeResponse:
         """
         모델 신체 사이즈 조회
         """
@@ -156,7 +158,7 @@ class AdminsService:
 
     async def update_camera_test_status(
         self,
-        model_id: int,
+        model_id: UUID,
         request: CameraTestStatusUpdate
     ) -> CameraTestResponse:
         """
@@ -202,12 +204,22 @@ class AdminsService:
         - 요약 정보
         - 주간 통계 (최근 7일)
         - 월간 통계 (최근 30일)
+        
+        데이터가 없을 때도 200 OK와 기본값(0, 빈 배열) 반환
         """
         try:
-            # 1. 요약 정보
-            today_registrations = await self.repository.get_today_registrations_count()
-            today_incomplete_camera_tests = await self.repository.get_today_incomplete_camera_tests_count()
-            incomplete_addresses = await self.repository.get_incomplete_addresses_count()
+            # 1. 요약 정보 (기본값: 0)
+            today_registrations = 0
+            today_incomplete_camera_tests = 0
+            incomplete_addresses = 0
+            
+            try:
+                today_registrations = await self.repository.get_today_registrations_count() or 0
+                today_incomplete_camera_tests = await self.repository.get_today_incomplete_camera_tests_count() or 0
+                incomplete_addresses = await self.repository.get_incomplete_addresses_count() or 0
+            except Exception as e:
+                # 개별 통계 조회 실패해도 계속 진행
+                print(f"요약 정보 조회 중 일부 오류 발생: {str(e)}")
             
             summary = DashboardSummary(
                 today_registrations=today_registrations,
@@ -218,10 +230,16 @@ class AdminsService:
             # 2. 주간 통계 (최근 7일)
             today = date.today()
             week_start = today - timedelta(days=6)  # 오늘 포함 7일
-            weekly_data = await self.repository.get_daily_registrations(week_start, today)
+            weekly_data = []
+            
+            try:
+                weekly_data = await self.repository.get_daily_registrations(week_start, today) or []
+            except Exception as e:
+                # 주간 통계 조회 실패해도 빈 배열로 계속 진행
+                print(f"주간 통계 조회 중 오류 발생: {str(e)}")
             
             # 날짜별로 매핑 (데이터가 없는 날짜는 0으로)
-            weekly_map = {row["date"]: row["count"] for row in weekly_data}
+            weekly_map = {row["date"]: row["count"] for row in weekly_data} if weekly_data else {}
             weekly_registrations = [
                 DailyRegistration(
                     date=week_start + timedelta(days=i),
@@ -234,10 +252,16 @@ class AdminsService:
             
             # 3. 월간 통계 (최근 30일)
             month_start = today - timedelta(days=29)  # 오늘 포함 30일
-            monthly_data = await self.repository.get_daily_registrations(month_start, today)
+            monthly_data = []
+            
+            try:
+                monthly_data = await self.repository.get_daily_registrations(month_start, today) or []
+            except Exception as e:
+                # 월간 통계 조회 실패해도 빈 배열로 계속 진행
+                print(f"월간 통계 조회 중 오류 발생: {str(e)}")
             
             # 날짜별로 매핑
-            monthly_map = {row["date"]: row["count"] for row in monthly_data}
+            monthly_map = {row["date"]: row["count"] for row in monthly_data} if monthly_data else {}
             monthly_registrations = [
                 DailyRegistration(
                     date=month_start + timedelta(days=i),
@@ -254,9 +278,63 @@ class AdminsService:
                 monthly_stats=monthly_stats,
             )
         except Exception as e:
+            # 최종 방어: 모든 것이 실패해도 기본값 반환
+            print(f"대시보드 통계 조회 중 치명적 오류 발생: {str(e)}")
+            
+            # 기본 응답 생성
+            today = date.today()
+            week_start = today - timedelta(days=6)
+            month_start = today - timedelta(days=29)
+            
+            return DashboardResponse(
+                summary=DashboardSummary(
+                    today_registrations=0,
+                    today_incomplete_camera_tests=0,
+                    incomplete_addresses=0,
+                ),
+                weekly_stats=DashboardWeeklyStats(
+                    daily_registrations=[
+                        DailyRegistration(date=week_start + timedelta(days=i), count=0)
+                        for i in range(7)
+                    ]
+                ),
+                monthly_stats=DashboardMonthlyStats(
+                    daily_registrations=[
+                        DailyRegistration(date=month_start + timedelta(days=i), count=0)
+                        for i in range(30)
+                    ]
+                ),
+            )
+
+    async def get_camera_test(self, target_date: date | None = None):
+        """특정 날짜의 카메라테스트 목록 조회 (중복 모델 제거, 이른 시간 순)
+
+        Args:
+            target_date: 조회할 날짜 (기본값: 오늘)
+        """
+        try:
+            if target_date is None:
+                target_date = date.today()
+            rows = await self.repository.get_cameratests_by_date(target_date)
+            return [
+                {
+                    "id": r["id"],
+                    "model_id": r["model_id"],
+                    "is_tested": r["is_tested"],
+                    "visited_at": r["visited_at"],
+                    "name": r["name"],
+                    "birth_date": r["birth_date"],
+                    "nationality": r["nationality"],
+                    "height": r["height"],
+                    "agency_name": r["agency_name"],
+                    "visa_type": r["visa_type"],
+                }
+                for r in rows
+            ]
+        except Exception as e:
             raise HTTPException(
                 status_code=500,
-                detail=f"대시보드 통계 조회 중 오류가 발생했습니다: {str(e)}"
+                detail=f"카메라테스트 목록 조회 중 오류가 발생했습니다: {str(e)}"
             )
 
 

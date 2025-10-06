@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.db import db
 from app.core.config import settings
+from app.domain.accounts import account_router
 from app.domain.admins import admins_router
 from app.domain.excel import excel_router
 from app.domain.models import models_router
@@ -48,6 +49,7 @@ app.include_router(models_router.app)
 app.include_router(admins_router.app)
 app.include_router(smtp_router.app)
 app.include_router(excel_router.app)
+app.include_router(account_router.app)
 
 @app.get("/")
 async def root():

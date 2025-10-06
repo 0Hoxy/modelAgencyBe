@@ -15,7 +15,7 @@ class ModelsRepository(BaseRepository):
         query = (
             f"SELECT id, name, stage_name, birth_date, gender, phone, nationality, "
             f"agency_name, agency_manager_name, agency_manager_phone, "
-            f"instagram, tiktok, youtube, address_city, address_district, address_street, "
+            f"instagram, tictok, youtube, address_city, address_district, address_street, "
             f"special_abilities, other_languages, has_tattoo, tattoo_location, tattoo_size, "
             f"height, weight, top_size, bottom_size, shoes_size "
             f"FROM {self.table_name} WHERE is_foreigner = false"
@@ -48,7 +48,7 @@ class ModelsRepository(BaseRepository):
         query = (
             f"SELECT id, name, stage_name, birth_date, gender, phone, nationality, "
             f"agency_name, agency_manager_name, agency_manager_phone, "
-            f"instagram, tiktok, youtube, address_city, address_district, address_street, "
+            f"instagram, tictok, youtube, address_city, address_district, address_street, "
             f"special_abilities, other_languages, has_agency, has_tattoo, tattoo_location, tattoo_size, "
             f"height, weight, top_size, bottom_size, shoes_size "
             f"FROM {self.table_name} "

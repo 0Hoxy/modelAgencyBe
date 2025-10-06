@@ -1,4 +1,5 @@
 from typing import Optional, List, Awaitable
+from contextlib import asynccontextmanager
 
 import asyncpg
 
@@ -49,6 +50,7 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchmany(query, *args)
 
+    @asynccontextmanager
     async def transaction(self):
         """트랜잭션 컨텍스트 매니저"""
         async with self.pool.acquire() as conn:
