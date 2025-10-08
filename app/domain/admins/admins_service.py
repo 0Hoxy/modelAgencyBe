@@ -130,7 +130,7 @@ class AdminsService:
         """
         try:
             # 이미 등록된 카메라 테스트가 있는지 확인
-            existing = await self.repository.get_camera_test(request.model_id)
+            existing = await self.repository.get_camera_test_today(request.model_id)
             if existing:
                 raise HTTPException(
                     status_code=400,

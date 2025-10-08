@@ -11,6 +11,7 @@ from app.domain.excel import excel_router
 from app.domain.models import models_router
 from app.domain.models.models_schemas import ReadRevisitedModel
 from app.domain.models.models_services import models_services
+from app.domain.qrcode import qrcode_router
 from app.domain.smtp import smtp_router
 
 
@@ -50,6 +51,7 @@ app.include_router(admins_router.app)
 app.include_router(smtp_router.app)
 app.include_router(excel_router.app)
 app.include_router(account_router.app)
+app.include_router(qrcode_router.app)
 
 @app.get("/")
 async def root():

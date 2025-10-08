@@ -185,6 +185,19 @@ class AdminsRepository(BaseRepository):
             LIMIT 1
         """
         return await db.fetchrow(query, model_id)
+
+    async def get_camera_test_today(self, model_id: UUID) -> Optional[asyncpg.Record]:
+        """금일 카메라 테스트 조회"""
+        query = """
+            SELECT id, model_id, is_tested, visited_at
+            FROM cameratest
+            WHERE model_id = $1
+            AND visited_at >= CURRENT_DATE
+            AND visited_at < CURRENT_DATE + INTERVAL '1 day'
+            ORDER BY visited_at DESC
+            LIMIT 1
+        """
+        return await db.fetchrow(query, model_id)
     
     async def create_camera_test_transaction(
         self,
@@ -281,7 +294,7 @@ class AdminsRepository(BaseRepository):
         query = """
             SELECT COUNT(DISTINCT model_id) as count
             FROM cameratest
-            WHERE DATE(visited_at) = CURRENT_DATE AND is_tested <> 'COMPLETED'
+            WHERE DATE(visited_at) = CURRENT_DATE AND is_tested = 'PENDING'
         """
         result = await db.fetchrow(query)
         return result["count"] if result else 0
