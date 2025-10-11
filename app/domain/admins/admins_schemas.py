@@ -5,7 +5,7 @@
 - 대시보드
 """
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 from uuid import UUID
 
@@ -59,8 +59,10 @@ class ModelSearchParams(BaseModel):
     """모델 검색 조건"""
     name: Optional[str] = Field(None, description="이름 (부분 검색)")
     gender: Optional[str] = Field(None, description="성별")
+    nationality: Optional[str] = Field(None, description="국적")
     address_city: Optional[str] = Field(None, description="주소 (시)")
     address_district: Optional[str] = Field(None, description="주소 (구)")
+    address_street: Optional[str] = Field(None, description="주소 (동)")
     special_abilities: Optional[str] = Field(None, description="특기 (부분 검색)")
     other_languages: Optional[str] = Field(None, description="가능한 외국어 (부분 검색)")
     korean_level: Optional[str] = Field(None, description="한국어 수준 (해외 모델)")
@@ -68,6 +70,37 @@ class ModelSearchParams(BaseModel):
     # 페이징
     page: int = Field(default=1, ge=1, description="페이지 번호")
     page_size: int = Field(default=20, ge=1, le=100, description="페이지 크기")
+
+
+# ===== 필터 옵션 관련 =====
+
+class FilterOption(BaseModel):
+    """필터 옵션 기본 구조"""
+    label: str = Field(..., description="표시용 라벨")
+    value: str = Field(..., description="검색에 사용할 값")
+    description: Optional[str] = Field(None, description="옵션 설명")
+
+class DistrictOption(BaseModel):
+    """구/군 옵션"""
+    label: str = Field(..., description="표시용 구/군명")
+    value: str = Field(..., description="검색에 사용할 구/군값")
+    dongs: List[str] = Field(default=[], description="해당 구/군의 동 목록")
+
+class AddressCityOption(BaseModel):
+    """주소 시/도 옵션"""
+    label: str = Field(..., description="표시용 시/도명")
+    value: str = Field(..., description="검색에 사용할 시/도값")
+    districts: List[DistrictOption] = Field(default=[], description="해당 시/도의 구/군 목록")
+
+class FilterOptionsResponse(BaseModel):
+    """필터 옵션 응답"""
+    nationalities: List[FilterOption] = Field(..., description="국적 목록")
+    specialties: List[FilterOption] = Field(..., description="특기 목록")
+    languages: List[FilterOption] = Field(..., description="언어 목록")
+    korean_levels: List[FilterOption] = Field(..., description="한국어 수준 목록")
+    visa_types: List[FilterOption] = Field(..., description="비자 타입 목록")
+    address_cities: List[AddressCityOption] = Field(..., description="주소 시/도 목록")
+    metadata: dict = Field(..., description="메타데이터")
 
 
 # ===== 신체 사이즈 관련 =====

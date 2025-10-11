@@ -22,6 +22,7 @@ from app.domain.admins.admins_schemas import (
     DashboardResponse,
     DashboardSummary,
     DashboardWeeklyStats,
+    FilterOptionsResponse,
     DashboardMonthlyStats,
     DailyRegistration,
 )
@@ -335,6 +336,48 @@ class AdminsService:
             raise HTTPException(
                 status_code=500,
                 detail=f"카메라테스트 목록 조회 중 오류가 발생했습니다: {str(e)}"
+            )
+    
+    async def delete_model(self, model_id: str) -> dict:
+        """
+        모델 삭제 (트랜잭션 처리)
+        - cameratest 기록은 유지
+        """
+        try:
+            async with db.transaction() as conn:
+                # 트랜잭션 내에서 모델 존재 확인
+                if not await self.repository.model_exists_transaction(conn, model_id):
+                    raise HTTPException(status_code=404, detail="모델을 찾을 수 없습니다.")
+                
+                # 트랜잭션 내에서 모델 삭제
+                deleted_model = await self.repository.delete_model_transaction(conn, model_id)
+                if not deleted_model:
+                    raise HTTPException(status_code=500, detail="모델 삭제에 실패했습니다.")
+                
+                return {
+                    "message": f"모델 '{deleted_model['name']}'이 성공적으로 삭제되었습니다.",
+                    "model_id": model_id,
+                    "deleted_at": datetime.now().isoformat()
+                }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"모델 삭제 중 오류가 발생했습니다: {str(e)}"
+            )
+    
+    async def get_filter_options(self) -> FilterOptionsResponse:
+        """
+        필터 옵션 조회
+        """
+        try:
+            options = await self.repository.get_filter_options()
+            return FilterOptionsResponse.model_validate(options)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"필터 옵션 조회 중 오류가 발생했습니다: {str(e)}"
             )
 
 

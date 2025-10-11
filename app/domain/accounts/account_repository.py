@@ -43,6 +43,44 @@ class AccountRepository(BaseRepository):
         """
         result = await db.fetchrow(query, pid)
         return result['exists'] if result else False
+    
+    async def verify_password(self, pid: str, password: str) -> bool:
+        """
+        비밀번호 검증
+        
+        Args:
+            pid: 이메일
+            password: 검증할 비밀번호
+            
+        Returns:
+            bool: 비밀번호 일치 여부
+        """
+        user = await self.get_by_pid(pid)
+        if not user:
+            return False
+        
+        # bcrypt를 사용하여 비밀번호 검증
+        import bcrypt
+        return bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8'))
+    
+    async def change_password_with_transaction(self, pid: str, new_password: str) -> None:
+        """
+        비밀번호 변경 (평문 비밀번호를 받아서 해시화 후 트랜잭션 처리)
+        
+        Args:
+            pid: 이메일
+            new_password: 새로운 비밀번호 (평문)
+        """
+        import bcrypt
+        
+        # 새 비밀번호 해시화
+        salt = bcrypt.gensalt()
+        password_hash = bcrypt.hashpw(new_password.encode('utf-8'), salt).decode('utf-8')
+        
+        # 트랜잭션으로 비밀번호 업데이트
+        async with db.transaction() as conn:
+            await self.update_password_transaction(conn, pid, password_hash)
+    
 
     async def create_account_transaction(
         self,

@@ -329,6 +329,39 @@ class AccountService:
                 status_code=500,
                 detail=f"토큰 갱신 중 오류가 발생했습니다: {str(e)}"
             )
+    
+    async def get_user_profile(self, pid: str) -> UserResponse:
+        """
+        사용자 프로필 조회
+        """
+        try:
+            user = await self.repository.get_by_pid(pid)
+            if not user:
+                raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+            return UserResponse.model_validate(dict(user))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"사용자 정보 조회 중 오류가 발생했습니다: {str(e)}")
+    
+    async def change_current_user_password(self, pid: str, current_password: str, new_password: str) -> AccountResponse:
+        """
+        현재 로그인한 사용자의 비밀번호 변경
+        """
+        try:
+            # 현재 비밀번호 검증
+            is_valid = await self.repository.verify_password(pid, current_password)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다.")
+            
+            # 새 비밀번호로 업데이트
+            await self.repository.change_password_with_transaction(pid, new_password)
+            
+            return AccountResponse(message="비밀번호가 성공적으로 변경되었습니다.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"비밀번호 변경 중 오류가 발생했습니다: {str(e)}")
 
 
 account_service = AccountService(account_repository)

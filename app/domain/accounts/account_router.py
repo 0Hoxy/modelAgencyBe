@@ -1,8 +1,9 @@
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.domain.accounts.account_service import account_service
+from app.shared.dependencies import get_current_user
 from app.domain.accounts.account_schemas import (
     SignUpAdminRequest,
     SignUpDirectorRequest,
@@ -10,6 +11,7 @@ from app.domain.accounts.account_schemas import (
     LoginRequest,
     LoginResponse,
     PasswordChangeRequest,
+    CurrentUserPasswordChangeRequest,
     AccountResponse,
     RefreshTokenRequest,
     RefreshTokenResponse,
@@ -118,3 +120,44 @@ async def refresh_token(request: RefreshTokenRequest):
     **Note**: 보안을 위해 리프레시 토큰도 함께 갱신됩니다.
     """
     return await account_service.refresh_access_token(request)
+
+
+@app.get("/me", response_model=UserResponse)
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """
+    현재 로그인한 사용자 정보 조회
+    
+    - **Authorization**: Bearer token 필요
+    
+    **Returns**:
+    - **id**: 사용자 고유 ID
+    - **name**: 사용자 이름
+    - **pid**: 이메일
+    - **role**: 사용자 역할 (ADMIN/DIRECTOR)
+    - **provider**: 가입 경로 (LOCAL/GOOGLE/KAKAO/NAVER)
+    - **created_at**: 가입일시
+    """
+    return await account_service.get_user_profile(current_user["pid"])
+
+
+@app.put("/me/password", response_model=AccountResponse)
+async def change_current_user_password(
+    request: CurrentUserPasswordChangeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    현재 로그인한 사용자의 비밀번호 변경
+    
+    - **Authorization**: Bearer token 필요
+    
+    - **current_password**: 현재 비밀번호
+    - **new_password**: 새 비밀번호 (8-20자, 영문+숫자+특수문자)
+    
+    **Returns**:
+    - **message**: 성공 메시지
+    """
+    return await account_service.change_current_user_password(
+        current_user["pid"], 
+        request.current_password, 
+        request.new_password
+    )

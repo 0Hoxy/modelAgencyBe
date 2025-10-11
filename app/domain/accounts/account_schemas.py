@@ -137,6 +137,30 @@ class RefreshTokenResponse(BaseModel):
     token_type: str = Field(default="bearer", description="토큰 타입")
 
 
+class CurrentUserPasswordChangeRequest(BaseModel):
+    """현재 로그인한 사용자의 비밀번호 변경 요청"""
+    current_password: str = Field(..., description="현재 비밀번호")
+    new_password: str = Field(..., min_length=8, max_length=20, description="새 비밀번호")
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """새 비밀번호 검증 (회원가입과 동일)"""
+        if len(v) < 8 or len(v) > 20:
+            raise ValueError('비밀번호는 8자 이상 20자 이하여야 합니다.')
+        
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError('비밀번호는 최소 1개의 영문자를 포함해야 합니다.')
+        
+        if not re.search(r'\d', v):
+            raise ValueError('비밀번호는 최소 1개의 숫자를 포함해야 합니다.')
+        
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+            raise ValueError('비밀번호는 최소 1개의 특수문자를 포함해야 합니다.')
+        
+        return v
+
+
 class AccountResponse(BaseModel):
     """일반 응답"""
     message: str = Field(..., description="응답 메시지")

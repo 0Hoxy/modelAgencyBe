@@ -50,6 +50,11 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchmany(query, *args)
 
+    async def fetchval(self, query: str, *args):
+        """단일 값 조회 (첫 번째 컬럼의 첫 번째 행)"""
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(query, *args)
+
     @asynccontextmanager
     async def transaction(self):
         """트랜잭션 컨텍스트 매니저"""

@@ -20,6 +20,7 @@ from app.domain.admins.admins_schemas import (
     CameraTestStatusUpdate,
     CameraTestResponse,
     DashboardResponse,
+    FilterOptionsResponse,
 )
 
 
@@ -36,8 +37,10 @@ app = APIRouter(
 async def search_domestic_models(
     name: str = Query(None, description="이름 (부분 검색)"),
     gender: str = Query(None, description="성별"),
+    nationality: str = Query(None, description="국적"),
     address_city: str = Query(None, description="주소 (시)"),
     address_district: str = Query(None, description="주소 (구)"),
+    address_street: str = Query(None, description="주소 (동)"),
     special_abilities: str = Query(None, description="특기"),
     other_languages: str = Query(None, description="가능한 외국어"),
     page: int = Query(1, ge=1, description="페이지 번호"),
@@ -51,8 +54,10 @@ async def search_domestic_models(
     search_params = ModelSearchParams(
         name=name,
         gender=gender,
+        nationality=nationality,
         address_city=address_city,
         address_district=address_district,
+        address_street=address_street,
         special_abilities=special_abilities,
         other_languages=other_languages,
         page=page,
@@ -65,8 +70,10 @@ async def search_domestic_models(
 async def search_global_models(
     name: str = Query(None, description="이름 (부분 검색)"),
     gender: str = Query(None, description="성별"),
+    nationality: str = Query(None, description="국적"),
     address_city: str = Query(None, description="주소 (시)"),
     address_district: str = Query(None, description="주소 (구)"),
+    address_street: str = Query(None, description="주소 (동)"),
     special_abilities: str = Query(None, description="특기"),
     other_languages: str = Query(None, description="가능한 외국어"),
     korean_level: str = Query(None, description="한국어 수준"),
@@ -81,8 +88,10 @@ async def search_global_models(
     search_params = ModelSearchParams(
         name=name,
         gender=gender,
+        nationality=nationality,
         address_city=address_city,
         address_district=address_district,
+        address_street=address_street,
         special_abilities=special_abilities,
         other_languages=other_languages,
         korean_level=korean_level,
@@ -213,3 +222,25 @@ async def get_camera_test(
     - 특정 날짜(target_date)의 카메라테스트를 모델당 1건(가장 이른 방문)으로 그룹핑하여 시간 오름차순 반환
     """
     return await admins_service.get_camera_test(target_date)
+
+@app.get("/models/filter-options", response_model=FilterOptionsResponse)
+async def get_filter_options(current_user: dict = Depends(require_admin)):
+    """
+    모델 검색 필터 옵션 조회
+    
+    - 관리자 권한 필요
+    - 국적, 특기, 언어, 한국어 수준, 비자 타입, 주소 시/도 옵션 제공
+    """
+    return await admins_service.get_filter_options()
+
+@app.delete("/models/{model_id}")
+async def delete_model(
+    model_id: str,
+    current_user: dict = Depends(require_admin_or_director)
+):
+    """
+    모델 삭제
+    - 관리자 또는 디렉터 권한 필요
+    - models 테이블에서만 삭제 (cameratest 기록은 유지)
+    """
+    return await admins_service.delete_model(model_id)

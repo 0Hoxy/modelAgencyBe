@@ -51,6 +51,12 @@ class AdminsRepository(BaseRepository):
             params.append(search_params.gender)
             param_index += 1
         
+        # 국적 검색
+        if search_params.nationality:
+            conditions.append(f"nationality ILIKE ${param_index}")
+            params.append(f"%{search_params.nationality}%")
+            param_index += 1
+        
         # 주소 (시) 검색
         if search_params.address_city:
             conditions.append(f"address_city ILIKE ${param_index}")
@@ -61,6 +67,12 @@ class AdminsRepository(BaseRepository):
         if search_params.address_district:
             conditions.append(f"address_district ILIKE ${param_index}")
             params.append(f"%{search_params.address_district}%")
+            param_index += 1
+        
+        # 주소 (동) 검색
+        if search_params.address_street:
+            conditions.append(f"address_street ILIKE ${param_index}")
+            params.append(f"%{search_params.address_street}%")
             param_index += 1
         
         # 특기 검색 (부분 일치)
@@ -302,6 +314,185 @@ class AdminsRepository(BaseRepository):
     async def get_incomplete_addresses_count(self) -> int:
         """주소록 등록 미완료 인원: 현재 테이블 미구현이므로 0 고정 반환"""
         return 0
+    
+    async def model_exists_transaction(self, conn: asyncpg.Connection, model_id: str) -> bool:
+        """트랜잭션 내에서 모델 존재 여부 확인"""
+        query = "SELECT EXISTS(SELECT 1 FROM models WHERE id = $1)"
+        result = await conn.fetchval(query, model_id)
+        return result
+    
+    async def delete_model_transaction(self, conn: asyncpg.Connection, model_id: str) -> dict | None:
+        """트랜잭션 내에서 모델 삭제 (cameratest 먼저 삭제 후 models 삭제)"""
+        # 1단계: cameratest 삭제 (외래키 제약 조건 해결)
+        await conn.execute("DELETE FROM cameratest WHERE model_id = $1", model_id)
+        
+        # 2단계: models 삭제
+        query = """
+            DELETE FROM models
+            WHERE id = $1
+            RETURNING id, name
+        """
+        result = await conn.fetchrow(query, model_id)
+        return dict(result) if result else None
+    
+    async def get_filter_options(self) -> dict:
+        """필터 옵션들을 수집"""
+        # 1. 국적 수집 (실제 DB 데이터)
+        nationalities = await self.get_unique_nationalities()
+        
+        # 2. 특기 수집 (실제 DB 데이터)
+        specialties = await self.get_unique_specialties()
+        
+        # 3. 언어 수집 (실제 DB 데이터)
+        languages = await self.get_unique_languages()
+        
+        # 4. 한국어 수준 (enum 하드코딩)
+        korean_levels = self.get_korean_level_options()
+        
+        # 5. 비자 타입 (enum 하드코딩)
+        visa_types = self.get_visa_type_options()
+        
+        # 6. 주소 시/도 수집 (실제 DB 데이터)
+        address_cities = await self.get_unique_address_cities()
+        
+        return {
+            "nationalities": nationalities,
+            "specialties": specialties,
+            "languages": languages,
+            "korean_levels": korean_levels,
+            "visa_types": visa_types,
+            "address_cities": address_cities,
+            "metadata": {
+                "last_updated": datetime.now().isoformat(),
+                "version": "1.0.0",
+                "total_counts": {
+                    "nationalities": len(nationalities),
+                    "specialties": len(specialties),
+                    "languages": len(languages),
+                    "korean_levels": len(korean_levels),
+                    "visa_types": len(visa_types),
+                    "address_cities": len(address_cities)
+                }
+            }
+        }
+    
+    async def get_unique_nationalities(self) -> List[dict]:
+        """국적 목록 수집"""
+        query = """
+            SELECT DISTINCT nationality as value
+            FROM models 
+            WHERE nationality IS NOT NULL AND nationality != ''
+            ORDER BY nationality
+        """
+        results = await db.fetch(query)
+        return [{"label": row["value"], "value": row["value"]} for row in results]
+    
+    async def get_unique_specialties(self) -> List[dict]:
+        """특기 목록 수집 (special_abilities에서 파싱)"""
+        query = """
+            SELECT DISTINCT TRIM(unnest(string_to_array(special_abilities, ','))) as value
+            FROM models 
+            WHERE special_abilities IS NOT NULL AND special_abilities != ''
+            ORDER BY value
+        """
+        results = await db.fetch(query)
+        return [{"label": row["value"], "value": row["value"]} for row in results]
+    
+    async def get_unique_languages(self) -> List[dict]:
+        """언어 목록 수집 (other_languages에서 파싱)"""
+        query = """
+            SELECT DISTINCT TRIM(unnest(string_to_array(other_languages, ','))) as value
+            FROM models 
+            WHERE other_languages IS NOT NULL AND other_languages != ''
+            ORDER BY value
+        """
+        results = await db.fetch(query)
+        return [{"label": row["value"], "value": row["value"]} for row in results]
+    
+    def get_korean_level_options(self) -> List[dict]:
+        """한국어 수준 옵션 (enum 하드코딩)"""
+        return [
+            {"label": "초급", "value": "BAD", "description": "기초적인 한국어만 가능"},
+            {"label": "중급", "value": "NOT_BAD", "description": "일상 대화 가능"},
+            {"label": "고급", "value": "GOOD", "description": "비즈니스 대화 가능"},
+            {"label": "원어민 수준", "value": "VERY_GOOD", "description": "원어민 수준"}
+        ]
+    
+    def get_visa_type_options(self) -> List[dict]:
+        """비자 타입 옵션 (enum 하드코딩)"""
+        return [
+            {"label": "E-1 (교수)", "value": "E-1", "description": "대학에서 강의하는 교수"},
+            {"label": "E-2 (회화지도)", "value": "E-2", "description": "외국어 회화지도"},
+            {"label": "E-3 (연구)", "value": "E-3", "description": "연구 활동"},
+            {"label": "E-4 (기술지도)", "value": "E-4", "description": "기술 지도"},
+            {"label": "E-5 (전문직)", "value": "E-5", "description": "전문직 업무"},
+            {"label": "E-6 (예술흥행)", "value": "E-6", "description": "예술 및 흥행 활동"},
+            {"label": "E-7 (특정활동)", "value": "E-7", "description": "특정 활동"},
+            {"label": "F-1 (방문동거)", "value": "F-1", "description": "방문 동거"},
+            {"label": "F-2 (거주)", "value": "F-2", "description": "거주"},
+            {"label": "F-4 (재외동포)", "value": "F-4", "description": "재외동포"},
+            {"label": "F-5 (영주)", "value": "F-5", "description": "영주"},
+            {"label": "F-6 (결혼이민)", "value": "F-6", "description": "결혼이민"},
+            {"label": "H-1 (관광취업)", "value": "H-1", "description": "관광취업"},
+            {"label": "H-2 (방문취업)", "value": "H-2", "description": "방문취업"},
+            {"label": "기타", "value": "OTHER", "description": "기타 비자"}
+        ]
+    
+    async def get_unique_address_cities(self) -> List[dict]:
+        """주소 시/도 목록 수집 (구/군, 동 포함)"""
+        query = """
+            SELECT DISTINCT address_city as value
+            FROM models 
+            WHERE address_city IS NOT NULL AND address_city != ''
+            ORDER BY address_city
+        """
+        results = await db.fetch(query)
+        
+        address_cities = []
+        for row in results:
+            city = row["value"]
+            districts = await self.get_districts_by_city(city)
+            address_cities.append({
+                "label": city,
+                "value": city,
+                "districts": districts
+            })
+        
+        return address_cities
+    
+    async def get_districts_by_city(self, city: str) -> List[dict]:
+        """특정 시/도의 구/군 목록 수집 (동 포함)"""
+        query = """
+            SELECT DISTINCT address_district
+            FROM models 
+            WHERE address_city = $1 AND address_district IS NOT NULL AND address_district != ''
+            ORDER BY address_district
+        """
+        results = await db.fetch(query, city)
+        
+        districts = []
+        for row in results:
+            district = row["address_district"]
+            dongs = await self.get_dongs_by_district(city, district)
+            districts.append({
+                "label": district,
+                "value": district,
+                "dongs": dongs
+            })
+        
+        return districts
+    
+    async def get_dongs_by_district(self, city: str, district: str) -> List[str]:
+        """특정 구/군의 동 목록 수집"""
+        query = """
+            SELECT DISTINCT address_street
+            FROM models 
+            WHERE address_city = $1 AND address_district = $2 
+            AND address_street IS NOT NULL AND address_street != ''
+            ORDER BY address_street
+        """
+        results = await db.fetch(query, city, district)
+        return [row["address_street"] for row in results]
 
 
 # Singleton 인스턴스
